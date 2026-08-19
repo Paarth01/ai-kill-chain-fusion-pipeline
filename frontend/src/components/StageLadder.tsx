@@ -42,7 +42,7 @@ export default function StageLadder({ current }: { current: F2T2EAStage }) {
             />
             <span
               className={`text-[9px] font-mono tracking-wider ${
-                isCurrent ? "text-console-text" : "text-console-muted"
+                reached ? "text-console-text" : "text-console-muted"
               }`}
             >
               {stage.label}
