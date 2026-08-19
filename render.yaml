@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: sentinel-fft2ea-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ALLOWED_ORIGINS
+        sync: false # set to your deployed Vercel frontend URL after first deploy
+      - key: ENABLE_REAL_DETECTION
+        value: "false" # keep off on Render free tier — torch/ultralytics won't fit the build

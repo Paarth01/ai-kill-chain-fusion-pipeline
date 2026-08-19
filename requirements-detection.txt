@@ -1,0 +1,10 @@
+# Optional — only needed if you set ENABLE_REAL_DETECTION=true in .env.
+# Not installed by default: torch/ultralytics are large (multi-GB with
+# CUDA deps) and unnecessary for running tests or synthetic-mode demos.
+#
+#   pip install -r requirements.txt
+#   pip install -r requirements-detection.txt   # <- adds this
+#   # then in .env: ENABLE_REAL_DETECTION=true
+
+ultralytics>=8.4.0
+opencv-python-headless>=4.10.0
