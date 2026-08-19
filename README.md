@@ -1,5 +1,10 @@
 # Sentinel-FFT2EA
 
+> Built in response to the Indian Army Internship Program's AI/ML "Kill
+> Chain for Armoured Formation" brief — a self-directed exercise in the
+> program's named F2T2EA cycle, ISR fusion, and legacy C2 integration,
+> using synthetic data only.
+
 A simulated multi-source threat fusion and decision-support pipeline. Ingests
 synthetic sensor feeds from multiple source types, fuses them into unified
 tracks, classifies them, and advances each track through the
