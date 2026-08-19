@@ -15,5 +15,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
+    // e2e/ contains Playwright specs (different test API, run via
+    // `npx playwright test`) — excluded here so Vitest doesn't try to
+    // execute them itself and fail on the API mismatch.
+    exclude: ["**/node_modules/**", "**/e2e/**"],
   },
 });
