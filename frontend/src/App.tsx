@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import StatusBar from "./components/StatusBar";
 import TrackCard from "./components/TrackCard";
+import TrackMap from "./components/TrackMap";
 import { acknowledgeTrack, assessTrack, subscribeToTrackStream, toggleEW } from "./api";
 import type { EWStatus, FusedTrack, SourceType } from "./types";
+
+type ViewMode = "grid" | "map";
 
 export default function App() {
   const [tracks, setTracks] = useState<FusedTrack[]>([]);
   const [ewStatus, setEwStatus] = useState<EWStatus | null>(null);
   const [connected, setConnected] = useState(false);
+  const [view, setView] = useState<ViewMode>("grid");
 
   useEffect(() => {
     const unsubscribe = subscribeToTrackStream(
@@ -55,11 +59,34 @@ export default function App() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedTracks.map((track) => (
-              <TrackCard key={track.track_id} track={track} onAck={handleAck} onAssess={handleAssess} />
-            ))}
-          </div>
+          <>
+            <div className="mb-4 flex gap-2">
+              {(["grid", "map"] as ViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setView(mode)}
+                  className={`focus-ring rounded border px-3 py-1 text-[11px] font-mono uppercase tracking-wider transition-colors ${
+                    view === mode
+                      ? "border-console-good text-console-good bg-console-good/10"
+                      : "border-console-border text-console-muted hover:text-console-text"
+                  }`}
+                  aria-pressed={view === mode}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+
+            {view === "map" ? (
+              <TrackMap tracks={sortedTracks} />
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {sortedTracks.map((track) => (
+                  <TrackCard key={track.track_id} track={track} onAck={handleAck} onAssess={handleAssess} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
