@@ -59,11 +59,8 @@ or regenerate a report.
 
 ## Honest limits of this test
 
-- **Single process, in-memory queue.** This measures one backend
-  instance's request-handling capacity, not the Redis-backed distributed
-  path (`fusion/queue_backend.py`'s `RedisQueueBackend`) or a
-  multi-instance deployment. Those would need a separate test against
-  that configuration.
+- **Single process, in-memory queue** for the results above. See the
+  Redis-backed run below for the distributed-mode comparison.
 - **Not testing the fusion/detection pipeline under load** — the feed
   producers run at their own fixed interval regardless of HTTP traffic;
   this test measures the API layer's concurrency handling, not fusion
@@ -71,3 +68,37 @@ or regenerate a report.
 - **Local network, not a real deployment.** Numbers will differ once
   backend and frontend are on separate hosted origins (Render/Vercel) —
   expect higher latency from real network hops, not from the app itself.
+
+## Redis-backed distributed mode: same test, `REDIS_URL` set
+
+Ran the identical 300-user/30s profile against an instance configured
+with `REDIS_URL` pointed at a local Redis server, to confirm the API
+layer holds up the same way when the fusion pipeline is running in
+distributed mode rather than the default in-process queue.
+
+| Metric | In-memory (above) | Redis-backed |
+|---|---|---|
+| Total requests | 5,291 | 5,359 |
+| Failures | 0 | 0 |
+| Aggregate throughput | ~176 req/s | ~178 req/s |
+| p50 | 10 ms | 9 ms |
+| p95 | 69 ms | 81 ms |
+| p99 | 130 ms | 150 ms |
+
+Essentially comparable — a slightly wider tail latency under Redis mode
+(p99 150ms vs 130ms), plausibly from Redis competing for resources on the
+same single test machine, not from anything architecturally worse.
+`/health` stayed `ok` throughout and after the run in both modes.
+
+**Important caveat, stated plainly:** none of the HTTP endpoints this
+test hits (`/tracks`, `/health`, `/ew/toggle`, `/tracks/{id}/ack`) touch
+the queue backend directly — `RedisQueueBackend` only sits between the
+feed producers and the fusion consumer loop, internal to the process, not
+in the HTTP request path. So this run confirms **the API layer stays
+healthy and comparably fast while the fusion pipeline is Redis-backed
+underneath it** — it is not a direct benchmark of Redis queue throughput
+itself. A true queue-throughput benchmark would need a separate
+producer/consumer test hitting `RedisQueueBackend.put()`/`.get()`
+directly, which isn't included here.
+
+Raw CSVs for this run are in `results/` with the `run_redis_` prefix.
