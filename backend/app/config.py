@@ -20,6 +20,18 @@ class Settings:
     # Real YOLOv8n detection mode (requires requirements-detection.txt)
     ENABLE_REAL_DETECTION: bool = os.getenv("ENABLE_REAL_DETECTION", "false").lower() == "true"
 
+    # Path to model weights — defaults to stock yolov8n.pt (auto-downloaded
+    # by ultralytics on first use). Point this at your own trained weights
+    # (e.g. from the Purplle Tech Challenge project) to use them instead —
+    # no code change needed.
+    YOLO_MODEL_PATH: str = os.getenv("YOLO_MODEL_PATH", "yolov8n.pt")
+
+    # Frame source for real-detection mode:
+    #   "demo"          -> bundled ultralytics sample images (default)
+    #   "webcam"        -> local webcam via OpenCV (device index 0)
+    #   <path to file>  -> a video file or image, read via OpenCV
+    YOLO_FRAME_SOURCE: str = os.getenv("YOLO_FRAME_SOURCE", "demo")
+
     # Distributed mode: when set, feeds/fusion communicate over a Redis list
     # instead of an in-process asyncio.Queue, so producers and the fusion
     # worker can run as separate processes/containers. Unset = in-memory.
@@ -36,6 +48,16 @@ class Settings:
     ALLOWED_ORIGINS: list[str] = [
         o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()
     ]
+
+    # API key required on mutating endpoints (ack/assess/EW toggle) via an
+    # X-API-Key header. Left unset by default (auth disabled) so local
+    # development and the test suite work out of the box — set this
+    # before any real deployment. Deliberately NOT applied to /stream/tracks:
+    # browsers' EventSource API cannot send custom headers, so an SSE
+    # endpoint can't be protected this way without a different scheme
+    # (e.g. a short-lived signed query param) — noted here rather than
+    # silently left as a gap.
+    API_KEY: str | None = os.getenv("API_KEY") or None
 
 
 settings = Settings()

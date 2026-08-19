@@ -8,5 +8,7 @@ services:
     envVars:
       - key: ALLOWED_ORIGINS
         sync: false # set to your deployed Vercel frontend URL after first deploy
+      - key: API_KEY
+        sync: false # set a real secret before deploying — set VITE_API_KEY to match on Vercel
       - key: ENABLE_REAL_DETECTION
         value: "false" # keep off on Render free tier — torch/ultralytics won't fit the build

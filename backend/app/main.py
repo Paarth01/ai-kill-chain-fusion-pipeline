@@ -1,9 +1,10 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.auth import require_api_key
 from backend.app.config import settings
 from backend.app.ew.ew_simulator import ew_simulator
 from backend.app.feeds.elint_feed import ELINTFeed
@@ -76,10 +77,11 @@ async def list_tracks():
     return [t.model_dump(mode="json") for t in fusion_engine.snapshot()]
 
 
-@app.post("/tracks/{track_id}/ack")
+@app.post("/tracks/{track_id}/ack", dependencies=[Depends(require_api_key)])
 async def ack_track(track_id: str):
     """Operator acknowledges a TARGET-stage track, advancing it to ENGAGE.
-    This is the only way a track can reach ENGAGE — never automatic."""
+    This is the only way a track can reach ENGAGE — never automatic.
+    Requires X-API-Key if API_KEY is configured (see backend/app/auth.py)."""
     track = fusion_engine.tracks.get(track_id)
     if not track:
         raise HTTPException(404, "Track not found")
@@ -90,7 +92,7 @@ async def ack_track(track_id: str):
     return track.model_dump(mode="json")
 
 
-@app.post("/tracks/{track_id}/assess")
+@app.post("/tracks/{track_id}/assess", dependencies=[Depends(require_api_key)])
 async def close_track(track_id: str, summary: str = ""):
     track = fusion_engine.tracks.get(track_id)
     if not track:
@@ -99,9 +101,10 @@ async def close_track(track_id: str, summary: str = ""):
     return track.model_dump(mode="json")
 
 
-@app.post("/ew/toggle")
+@app.post("/ew/toggle", dependencies=[Depends(require_api_key)])
 async def toggle_ew(source_type: SourceType):
-    """Flip EW degradation on/off for a given source type."""
+    """Flip EW degradation on/off for a given source type.
+    Requires X-API-Key if API_KEY is configured (see backend/app/auth.py)."""
     new_state = ew_simulator.toggle(source_type)
     return {"source_type": source_type.value, "degraded": new_state}
 

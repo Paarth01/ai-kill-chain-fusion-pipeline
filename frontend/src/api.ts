@@ -8,6 +8,16 @@ import type { SourceType, TracksUpdatePayload } from "./types";
 // own origin and silently fail.
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
+// Sent as X-API-Key on mutating requests only (ack/assess/EW toggle) —
+// matches backend/app/auth.py, which likewise only gates those endpoints.
+// Undefined/empty is fine for local dev, where the backend has no
+// API_KEY configured and skips the check entirely.
+const API_KEY = import.meta.env.VITE_API_KEY;
+
+function authHeaders(): HeadersInit {
+  return API_KEY ? { "X-API-Key": API_KEY } : {};
+}
+
 export function subscribeToTrackStream(onUpdate: (payload: TracksUpdatePayload) => void, onError: () => void) {
   const source = new EventSource(`${API_BASE}/stream/tracks`);
 
@@ -28,7 +38,7 @@ export function subscribeToTrackStream(onUpdate: (payload: TracksUpdatePayload) 
 }
 
 export async function acknowledgeTrack(trackId: string) {
-  const res = await fetch(`${API_BASE}/tracks/${trackId}/ack`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/tracks/${trackId}/ack`, { method: "POST", headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -36,13 +46,17 @@ export async function acknowledgeTrack(trackId: string) {
 export async function assessTrack(trackId: string, summary: string) {
   const res = await fetch(`${API_BASE}/tracks/${trackId}/assess?summary=${encodeURIComponent(summary)}`, {
     method: "POST",
+    headers: authHeaders(),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function toggleEW(sourceType: SourceType) {
-  const res = await fetch(`${API_BASE}/ew/toggle?source_type=${sourceType}`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/ew/toggle?source_type=${sourceType}`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
