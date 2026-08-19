@@ -1,0 +1,2 @@
+# Optional — only needed to run the load test in loadtest/locustfile.py.
+locust>=2.31.0
