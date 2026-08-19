@@ -115,7 +115,10 @@ sentinel-fft2ea/
 └── frontend/
     ├── Dockerfile                   # multi-stage: build + nginx serve
     ├── vercel.json                  # frontend deployment config
+    ├── playwright.config.ts         # E2E config (real browser, live stack)
     ├── .env.example                 # VITE_API_BASE_URL, VITE_API_KEY
+    ├── e2e/
+    │   └── dashboard.spec.ts        # real-browser test, wired into CI
     └── src/
         ├── App.tsx
         ├── api.ts                   # REST + SSE client (base URL + API key)
@@ -199,6 +202,24 @@ npx tsc -b
 npx vitest run
 npx vite build
 ```
+
+**End-to-end test (real browser, live SSE stream):** unlike the component
+tests above, `frontend/e2e/dashboard.spec.ts` runs against the actual
+running stack — real backend, real dev server, real Chromium. Needs both
+servers up first:
+```bash
+# terminal 1
+uvicorn backend.app.main:app --port 8000
+# terminal 2
+cd frontend && npm run dev
+# terminal 3
+cd frontend
+npx playwright install --with-deps chromium   # first time only
+npx playwright test
+```
+This is also wired into CI as its own job and runs automatically on
+every push — see the Status table below for why it couldn't be verified
+in the sandbox this project was built in.
 
 ### Real YOLOv8n detection mode (optional)
 
@@ -332,8 +353,30 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | Live map view (Leaflet, dark tiles, severity-colored tracks) | Done |
 | Load test suite (Locust), in-memory + Redis-backed, measured | Done — see `loadtest/README.md` |
 | LICENSE (MIT)                                            | Done   |
-| Full-stack Docker Compose (backend + Redis + frontend)  | Done, not container-tested (no Docker in build environment — Dockerfiles follow standard patterns but weren't run) |
+| Full-stack Docker Compose (backend + Redis + frontend)  | Written, not build-tested — see note below |
+| E2E browser test (Playwright) of the live dashboard      | Written, wired into CI, not run in this sandbox — see note below |
 | Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
+
+**On the two "written, not verified here" rows above:** this sandbox's
+network only allows a specific domain allowlist (npm, PyPI, GitHub,
+Ubuntu's package archive, etc.). Docker itself runs fine here — I
+installed it and confirmed the daemon starts — but pulling the
+`python:3.12-slim` base image from Docker Hub returns a 403, since that
+registry isn't on the allowlist. Same story for a real browser: Playwright's
+own CDN is blocked, and Ubuntu's `chromium-browser` package is a dead
+stub pointing at a snap that doesn't work in this environment either.
+Both are genuine sandbox limits, not skipped effort — confirmed by
+actually trying each one, not assumed.
+
+The E2E test (`frontend/e2e/dashboard.spec.ts`) is wired into
+`.github/workflows/ci.yml` as its own job, and GitHub Actions runners
+don't have this sandbox's restriction — it will actually execute in a
+real headless Chromium there. **After pushing, check the Actions tab
+rather than taking "it's written" as "it's verified."** If it fails,
+that's useful signal, not a formality — send me the failure and I'll fix
+it from the error, the same way the StageLadder bug and the
+Vitest/Playwright test-discovery conflict got caught and fixed during
+this build, not glossed over.
 
 ## Load testing
 
