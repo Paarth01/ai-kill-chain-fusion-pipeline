@@ -161,6 +161,10 @@ control — the only way any track advances to ENGAGE, and always an
 explicit operator action, never automatic. ENGAGE-stage tracks get a
 close-out control that advances them to ASSESS with a summary note.
 
+Toggle between the card grid and a live map view (top-left buttons) —
+the map plots each track's coordinates on a dark basemap, color-coded by
+severity, with the same live SSE updates driving both views.
+
 Type-check and build for production:
 ```bash
 npx tsc -b
@@ -265,22 +269,34 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | F2T2EA state machine w/ explicit operator gate         | Done   |
 | EW degradation simulator                               | Done   |
 | SSE streaming API                                      | Done   |
-| React operator dashboard                               | Done   |
+| React operator dashboard (grid + map views)            | Done   |
 | Backend test suite (13 tests)                          | Done   |
 | CI (backend tests + frontend build)                    | Done   |
 | Real YOLOv8n detection mode (optional, verified)        | Done   |
 | Redis-backed distributed queue mode (optional, verified) | Done   |
 | CORS + env-configurable frontend API base (verified)    | Done   |
+| Live map view (Leaflet, dark tiles, severity-colored tracks) | Done |
+| Load test suite (Locust) with measured results          | Done — see `loadtest/README.md` |
 | Full-stack Docker Compose (backend + Redis + frontend)  | Done, not container-tested (no Docker in build environment — Dockerfiles follow standard patterns but weren't run) |
 | Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
 
+## Load testing
+
+`loadtest/` contains a Locust suite modeling realistic operator-dashboard
+traffic (polling, EW toggles, acknowledge attempts) plus SSE stream
+connections. Measured against a single local instance: **5,291 requests
+at 300 concurrent users, 0 failures, ~176 req/s, p95 69ms, p99 130ms.**
+Full results, methodology, and honest limits (single-process only, not
+yet run against the Redis-backed distributed path) in
+`loadtest/README.md`.
+
 ## Possible extensions (not required, not started)
 
-- A lightweight map view (Leaflet/Mapbox) alongside the dashboard's card
-  grid, plotting `coordinates` per track
 - Swapping the demo frames in real-detection mode for your actual Purplle
   Tech Challenge model weights/video source instead of the bundled
   ultralytics sample images
+- Running the load test against the Redis-backed distributed queue path,
+  not just the default in-memory single-process mode
 
 ## Notes on scope & framing
 
