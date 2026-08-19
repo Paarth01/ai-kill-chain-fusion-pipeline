@@ -66,6 +66,7 @@ Built to demonstrate hands-on fluency with:
 ```
 sentinel-fft2ea/
 ├── README.md
+├── LICENSE                      # MIT (project's own code)
 ├── requirements.txt
 ├── requirements-detection.txt   # optional: real YOLOv8n mode
 ├── docker-compose.yml
@@ -74,10 +75,16 @@ sentinel-fft2ea/
 ├── .env.example
 ├── .gitignore
 ├── .github/workflows/ci.yml
+├── loadtest/
+│   ├── locustfile.py            # operator-traffic + SSE load profile
+│   ├── requirements.txt
+│   ├── README.md                # measured results, in-memory + Redis
+│   └── results/                 # raw Locust CSVs from actual runs
 ├── backend/
 │   └── app/
-│       ├── main.py                  # FastAPI app, CORS, orchestration loop
-│       ├── config.py                # settings (incl. ALLOWED_ORIGINS)
+│       ├── main.py                  # FastAPI app, CORS, auth, orchestration loop
+│       ├── config.py                # settings (CORS, API_KEY, YOLO_*, Redis)
+│       ├── auth.py                  # X-API-Key dependency (mutating endpoints only)
 │       ├── models/
 │       │   └── schemas.py           # Pydantic models & enums
 │       ├── feeds/
@@ -91,29 +98,40 @@ sentinel-fft2ea/
 │       │   └── queue_backend.py     # in-memory OR Redis-backed queue
 │       ├── classification/
 │       │   ├── detector.py          # severity classifier
-│       │   └── yolo_detector.py     # real YOLOv8n wrapper (optional dep)
+│       │   └── yolo_detector.py     # real YOLOv8n wrapper — configurable
+│       │                              model path + demo/webcam/video source
 │       ├── state_machine/
 │       │   └── f2t2ea.py            # stage transition rules
 │       ├── ew/
 │       │   └── ew_simulator.py      # feed degradation toggle
 │       ├── streaming/
-│       │   └── sse.py               # SSE endpoint
+│       │   └── sse.py               # SSE endpoint (not auth-gated — see below)
 │       └── tests/
 │           ├── test_fusion.py
 │           ├── test_state_machine.py
-│           └── test_queue_backend.py
+│           ├── test_queue_backend.py
+│           ├── test_auth.py
+│           └── test_yolo_detector.py
 └── frontend/
     ├── Dockerfile                   # multi-stage: build + nginx serve
     ├── vercel.json                  # frontend deployment config
-    ├── .env.example                 # VITE_API_BASE_URL
+    ├── .env.example                 # VITE_API_BASE_URL, VITE_API_KEY
     └── src/
         ├── App.tsx
-        ├── api.ts                   # REST + SSE client (env-configurable base URL)
+        ├── api.ts                   # REST + SSE client (base URL + API key)
+        ├── api.test.ts
         ├── types.ts                 # mirrors backend schemas
+        ├── test/
+        │   ├── setup.ts             # Testing Library cleanup + jest-dom
+        │   └── fixtures.ts          # shared FusedTrack test factory
         └── components/
             ├── StatusBar.tsx        # connection indicator, EW toggles
+            ├── StatusBar.test.tsx
             ├── TrackCard.tsx        # per-track card w/ operator actions
-            └── StageLadder.tsx      # F2T2EA progress visualization
+            ├── TrackCard.test.tsx
+            ├── TrackMap.tsx         # live Leaflet map, severity-colored
+            ├── StageLadder.tsx      # F2T2EA progress visualization
+            └── StageLadder.test.tsx
 ```
 
 ## Setup
@@ -130,12 +148,22 @@ uvicorn backend.app.main:app --reload --port 8000
 ```
 
 Then:
-- Live fused track stream (SSE): `GET http://localhost:8000/stream/tracks`
-- All active tracks (snapshot): `GET http://localhost:8000/tracks`
-- Acknowledge a TARGET-stage track → ENGAGE: `POST http://localhost:8000/tracks/{id}/ack`
-- Close out an ENGAGE-stage track → ASSESS: `POST http://localhost:8000/tracks/{id}/assess?summary=...`
-- Toggle EW degradation on a feed: `POST http://localhost:8000/ew/toggle?source_type=uav_uas`
+- Live fused track stream (SSE, unauthenticated — see note below): `GET http://localhost:8000/stream/tracks`
+- All active tracks (snapshot, unauthenticated): `GET http://localhost:8000/tracks`
+- Acknowledge a TARGET-stage track → ENGAGE (requires `X-API-Key` if `API_KEY` is set): `POST http://localhost:8000/tracks/{id}/ack`
+- Close out an ENGAGE-stage track → ASSESS (requires `X-API-Key` if set): `POST http://localhost:8000/tracks/{id}/assess?summary=...`
+- Toggle EW degradation on a feed (requires `X-API-Key` if set): `POST http://localhost:8000/ew/toggle?source_type=uav_uas`
 - Health check: `GET http://localhost:8000/health`
+
+**Auth note:** by default `API_KEY` is unset and none of this is
+enforced — fine for local dev, not fine for a real deployment. Set
+`API_KEY` in `.env` before deploying, and set `VITE_API_KEY` to match on
+the frontend. Read endpoints (`/tracks`, `/health`) and the SSE stream
+stay unauthenticated even with `API_KEY` set — the browser's
+`EventSource` API can't send custom headers, so protecting the stream
+would need a different scheme (e.g. a short-lived signed query param),
+which isn't implemented here. Stated as a real, known gap rather than
+glossed over.
 
 Run tests:
 ```bash
@@ -165,9 +193,10 @@ Toggle between the card grid and a live map view (top-left buttons) —
 the map plots each track's coordinates on a dark basemap, color-coded by
 severity, with the same live SSE updates driving both views.
 
-Type-check and build for production:
+Type-check, run tests, and build for production:
 ```bash
 npx tsc -b
+npx vitest run
 npx vite build
 ```
 
@@ -196,7 +225,27 @@ This is intentionally kept optional and separate from `requirements.txt`:
 `ultralytics`/`torch` are large, and requiring them just to run the test
 suite would slow down everyone who isn't specifically exercising this
 path. Swapping in your actual Purplle Tech Challenge model instead of the
-demo frames is a drop-in change to `classification/yolo_detector.py`.
+demo frames is a config change, not a code change — see below.
+
+**Pointing this at your real model and a real video/webcam:**
+```
+YOLO_MODEL_PATH=/path/to/your/purplle-weights.pt
+YOLO_FRAME_SOURCE=/path/to/a/video.mp4    # or: webcam
+```
+`YOLO_FRAME_SOURCE=webcam` reads from a local webcam via OpenCV; a path to
+a video file loops back to the start on EOF rather than exhausting after
+one pass; a path to a static image works too. Verified directly (not just
+written): generated a real test video, confirmed frames read correctly
+and looping works past the clip's end, confirmed a missing path raises a
+clear error instead of crashing the feed silently (`test_yolo_detector.py`).
+
+**Licensing note, stated plainly:** this project's own code is MIT
+licensed (see `LICENSE`), but `ultralytics` itself is AGPL-3.0 — which
+has real copyleft implications if you deploy a service using it publicly
+(the AGPL's network-use clause), separate from Ultralytics' own
+commercial licensing option. Worth knowing before enabling
+`ENABLE_REAL_DETECTION` on anything beyond a local/personal demo — this
+isn't legal advice, just a heads-up to look into before a real deployment.
 
 ### Distributed mode via Redis (optional)
 
@@ -240,17 +289,19 @@ deployed**, since that requires your own Render/Vercel accounts:
    requirements.txt`, `uvicorn` start command). Real-detection mode is set
    to `false` by default here — Render's free tier build won't fit
    torch/ultralytics; leave `requirements-detection.txt` for local/self-hosted use.
-3. After the first deploy, set `ALLOWED_ORIGINS` in the Render dashboard
+3. Set `API_KEY` in the Render dashboard to a real secret — `render.yaml`
+   leaves it blank intentionally rather than shipping a default key.
+4. After the first deploy, set `ALLOWED_ORIGINS` in the Render dashboard
    to your Vercel frontend's URL (step below) — `render.yaml` intentionally
    leaves this blank since it depends on the frontend URL you get.
 
 **Frontend (Vercel):**
 1. Import the repo in Vercel, set the project root to `frontend/`.
    `vercel.json` there defines the build (`npm run build`, `vite` preset).
-2. Set an environment variable `VITE_API_BASE_URL` to your Render
-   backend's URL (from the step above).
-3. Redeploy so the build picks up the env var — `VITE_API_BASE_URL` is
-   read at build time, not runtime (see `frontend/src/api.ts`).
+2. Set environment variables `VITE_API_BASE_URL` (your Render backend's
+   URL) and `VITE_API_KEY` (matching the `API_KEY` you set on Render).
+3. Redeploy so the build picks up both env vars — they're read at build
+   time, not runtime (see `frontend/src/api.ts`).
 
 Update the Render backend's `ALLOWED_ORIGINS` once you have the final
 Vercel URL, and redeploy the backend — CORS is origin-allowlisted, not
@@ -270,13 +321,17 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | EW degradation simulator                               | Done   |
 | SSE streaming API                                      | Done   |
 | React operator dashboard (grid + map views)            | Done   |
-| Backend test suite (13 tests)                          | Done   |
-| CI (backend tests + frontend build)                    | Done   |
+| Backend test suite (22 tests)                          | Done   |
+| Frontend test suite (19 tests, Vitest + Testing Library) | Done |
+| CI (backend tests, frontend typecheck/tests/build)      | Done   |
 | Real YOLOv8n detection mode (optional, verified)        | Done   |
+| Configurable model weights + video/webcam source (optional, verified) | Done |
 | Redis-backed distributed queue mode (optional, verified) | Done   |
 | CORS + env-configurable frontend API base (verified)    | Done   |
+| API key auth on mutating endpoints (verified)           | Done   |
 | Live map view (Leaflet, dark tiles, severity-colored tracks) | Done |
-| Load test suite (Locust) with measured results          | Done — see `loadtest/README.md` |
+| Load test suite (Locust), in-memory + Redis-backed, measured | Done — see `loadtest/README.md` |
+| LICENSE (MIT)                                            | Done   |
 | Full-stack Docker Compose (backend + Redis + frontend)  | Done, not container-tested (no Docker in build environment — Dockerfiles follow standard patterns but weren't run) |
 | Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
 
@@ -285,18 +340,20 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 `loadtest/` contains a Locust suite modeling realistic operator-dashboard
 traffic (polling, EW toggles, acknowledge attempts) plus SSE stream
 connections. Measured against a single local instance: **5,291 requests
-at 300 concurrent users, 0 failures, ~176 req/s, p95 69ms, p99 130ms.**
-Full results, methodology, and honest limits (single-process only, not
-yet run against the Redis-backed distributed path) in
-`loadtest/README.md`.
+at 300 concurrent users, 0 failures, ~176 req/s, p95 69ms, p99 130ms** in
+the default in-memory mode, and a comparable **5,359 requests, 0
+failures, ~178 req/s** with the Redis-backed distributed queue path
+active. Full results, methodology, and an explicit note on what the
+Redis-mode run does and doesn't measure, in `loadtest/README.md`.
 
 ## Possible extensions (not required, not started)
 
-- Swapping the demo frames in real-detection mode for your actual Purplle
-  Tech Challenge model weights/video source instead of the bundled
-  ultralytics sample images
-- Running the load test against the Redis-backed distributed queue path,
-  not just the default in-memory single-process mode
+- A true Redis queue-throughput benchmark hitting `RedisQueueBackend`
+  directly (the load test above confirms the API layer stays healthy
+  under Redis-backed fusion, not raw queue throughput itself)
+- Frontend tests for `App.tsx`'s SSE-driven state and sort order (current
+  frontend tests cover the pure logic and individual components; `App`
+  itself isn't covered yet)
 
 ## Notes on scope & framing
 
