@@ -84,3 +84,26 @@ def test_spoofed_reading_is_structurally_identical_to_a_real_one():
 
     assert type(spoofed) is type(genuine)
     assert set(spoofed.model_dump().keys()) == set(genuine.model_dump().keys())
+
+
+def test_spoof_toggle_endpoint_and_sse_payload_expose_spoof_status():
+    """Integration check that the dashboard's spoof toggle buttons have
+    real data to render: /ew/spoof/toggle actually flips state, and the
+    SSE payload's ew_spoof_status field reflects it — not just that the
+    EWSimulator class works in isolation."""
+    from fastapi.testclient import TestClient
+
+    from backend.app.main import app
+
+    client = TestClient(app)
+
+    resp = client.post("/ew/spoof/toggle?source_type=uav_uas")
+    assert resp.status_code == 200
+    assert resp.json() == {"source_type": "uav_uas", "spoofing": True}
+
+    status_resp = client.get("/ew/spoof/status")
+    assert status_resp.json()["uav_uas"] is True
+
+    # Reset so this test doesn't leak state into other tests sharing the
+    # module-level ew_simulator singleton.
+    client.post("/ew/spoof/toggle?source_type=uav_uas")

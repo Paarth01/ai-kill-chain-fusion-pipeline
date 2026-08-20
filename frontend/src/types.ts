@@ -34,6 +34,7 @@ export interface EWStatus {
 export interface TracksUpdatePayload {
   tracks: FusedTrack[];
   ew_status: EWStatus;
+  ew_spoof_status: EWStatus;
 }
 
 export interface StageEvent {

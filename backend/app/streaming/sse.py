@@ -22,6 +22,7 @@ async def track_event_generator():
         payload = {
             "tracks": snapshot,
             "ew_status": ew_simulator.status(),
+            "ew_spoof_status": ew_simulator.spoof_status(),
         }
         yield {"event": "tracks_update", "data": json.dumps(payload)}
         await asyncio.sleep(BROADCAST_INTERVAL_SECONDS)

@@ -38,6 +38,7 @@ function emitStreamError() {
 }
 
 const ewStatus = { vehicle_ir: false, uav_uas: false, elint: false, legacy_c2: false };
+const ewSpoofStatus = { vehicle_ir: false, uav_uas: false, elint: false, legacy_c2: false };
 
 describe("App", () => {
   beforeEach(() => {
@@ -57,6 +58,7 @@ describe("App", () => {
     emitStreamUpdate({
       tracks: [makeTrack({ track_id: "TRK-LIVE0001", stage: "find" })],
       ew_status: ewStatus,
+      ew_spoof_status: ewSpoofStatus,
     });
 
     await waitFor(() => {
@@ -68,7 +70,7 @@ describe("App", () => {
   it("falls back to CONNECTION LOST if the stream errors", async () => {
     render(<App />);
 
-    emitStreamUpdate({ tracks: [], ew_status: ewStatus });
+    emitStreamUpdate({ tracks: [], ew_status: ewStatus, ew_spoof_status: ewSpoofStatus });
     await waitFor(() => expect(screen.getByText("LIVE FEED")).toBeInTheDocument());
 
     emitStreamError();
@@ -86,6 +88,7 @@ describe("App", () => {
         makeTrack({ track_id: "TRK-ENGAGE01", stage: "engage" }),
       ],
       ew_status: ewStatus,
+      ew_spoof_status: ewSpoofStatus,
     });
 
     await waitFor(() => expect(screen.getByText("TRK-TARGET01")).toBeInTheDocument());
@@ -107,6 +110,7 @@ describe("App", () => {
     emitStreamUpdate({
       tracks: [makeTrack({ track_id: "TRK-ACKME001", stage: "target" })],
       ew_status: ewStatus,
+      ew_spoof_status: ewSpoofStatus,
     });
 
     await waitFor(() => expect(screen.getByText("TRK-ACKME001")).toBeInTheDocument());

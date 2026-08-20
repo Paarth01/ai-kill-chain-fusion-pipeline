@@ -61,6 +61,15 @@ export async function toggleEW(sourceType: SourceType) {
   return res.json();
 }
 
+export async function toggleEWSpoof(sourceType: SourceType) {
+  const res = await fetch(`${API_BASE}/ew/spoof/toggle?source_type=${sourceType}`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function fetchRecentHistory(limit = 50) {
   const res = await fetch(`${API_BASE}/history?limit=${limit}`);
   if (!res.ok) throw new Error(await res.text());

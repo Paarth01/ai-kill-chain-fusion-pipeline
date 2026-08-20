@@ -10,11 +10,20 @@ const SOURCE_LABELS: Record<SourceType, string> = {
 interface Props {
   connected: boolean;
   ewStatus: EWStatus | null;
+  ewSpoofStatus: EWStatus | null;
   trackCount: number;
   onToggleEW: (source: SourceType) => void;
+  onToggleEWSpoof: (source: SourceType) => void;
 }
 
-export default function StatusBar({ connected, ewStatus, trackCount, onToggleEW }: Props) {
+export default function StatusBar({
+  connected,
+  ewStatus,
+  ewSpoofStatus,
+  trackCount,
+  onToggleEW,
+  onToggleEWSpoof,
+}: Props) {
   return (
     <header className="border-b border-console-border bg-console-panel px-6 py-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -30,26 +39,50 @@ export default function StatusBar({ connected, ewStatus, trackCount, onToggleEW 
           <span className="text-xs font-mono text-console-muted">// {trackCount} ACTIVE TRACKS</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-console-muted mr-1">EW JAM:</span>
-          {ewStatus &&
-            (Object.keys(ewStatus) as SourceType[]).map((source) => {
-              const degraded = ewStatus[source];
-              return (
-                <button
-                  key={source}
-                  onClick={() => onToggleEW(source)}
-                  className={`focus-ring rounded border px-2 py-1 text-[10px] font-mono tracking-wide transition-colors ${
-                    degraded
-                      ? "border-console-critical text-console-critical bg-console-critical/10"
-                      : "border-console-border text-console-muted hover:border-console-good hover:text-console-good"
-                  }`}
-                  aria-pressed={degraded}
-                >
-                  {SOURCE_LABELS[source]}
-                </button>
-              );
-            })}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-console-muted mr-1">EW JAM:</span>
+            {ewStatus &&
+              (Object.keys(ewStatus) as SourceType[]).map((source) => {
+                const degraded = ewStatus[source];
+                return (
+                  <button
+                    key={source}
+                    onClick={() => onToggleEW(source)}
+                    className={`focus-ring rounded border px-2 py-1 text-[10px] font-mono tracking-wide transition-colors ${
+                      degraded
+                        ? "border-console-critical text-console-critical bg-console-critical/10"
+                        : "border-console-border text-console-muted hover:border-console-good hover:text-console-good"
+                    }`}
+                    aria-pressed={degraded}
+                  >
+                    {SOURCE_LABELS[source]}
+                  </button>
+                );
+              })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-console-muted mr-1">EW SPOOF:</span>
+            {ewSpoofStatus &&
+              (Object.keys(ewSpoofStatus) as SourceType[]).map((source) => {
+                const spoofing = ewSpoofStatus[source];
+                return (
+                  <button
+                    key={source}
+                    onClick={() => onToggleEWSpoof(source)}
+                    className={`focus-ring rounded border px-2 py-1 text-[10px] font-mono tracking-wide transition-colors ${
+                      spoofing
+                        ? "border-console-warn text-console-warn bg-console-warn/10"
+                        : "border-console-border text-console-muted hover:border-console-good hover:text-console-good"
+                    }`}
+                    aria-pressed={spoofing}
+                  >
+                    {SOURCE_LABELS[source]}
+                  </button>
+                );
+              })}
+          </div>
         </div>
       </div>
     </header>

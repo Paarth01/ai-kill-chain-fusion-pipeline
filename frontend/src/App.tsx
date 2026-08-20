@@ -3,7 +3,7 @@ import StatusBar from "./components/StatusBar";
 import TrackCard from "./components/TrackCard";
 import TrackMap from "./components/TrackMap";
 import HistoryPanel from "./components/HistoryPanel";
-import { acknowledgeTrack, assessTrack, subscribeToTrackStream, toggleEW } from "./api";
+import { acknowledgeTrack, assessTrack, subscribeToTrackStream, toggleEW, toggleEWSpoof } from "./api";
 import type { EWStatus, FusedTrack, SourceType } from "./types";
 
 type ViewMode = "grid" | "map" | "history";
@@ -11,6 +11,7 @@ type ViewMode = "grid" | "map" | "history";
 export default function App() {
   const [tracks, setTracks] = useState<FusedTrack[]>([]);
   const [ewStatus, setEwStatus] = useState<EWStatus | null>(null);
+  const [ewSpoofStatus, setEwSpoofStatus] = useState<EWStatus | null>(null);
   const [connected, setConnected] = useState(false);
   const [view, setView] = useState<ViewMode>("grid");
 
@@ -20,6 +21,7 @@ export default function App() {
         setConnected(true);
         setTracks(payload.tracks);
         setEwStatus(payload.ew_status);
+        setEwSpoofStatus(payload.ew_spoof_status);
       },
       () => setConnected(false)
     );
@@ -28,6 +30,10 @@ export default function App() {
 
   const handleToggleEW = useCallback(async (source: SourceType) => {
     await toggleEW(source);
+  }, []);
+
+  const handleToggleEWSpoof = useCallback(async (source: SourceType) => {
+    await toggleEWSpoof(source);
   }, []);
 
   const handleAck = useCallback(async (id: string) => {
@@ -48,8 +54,10 @@ export default function App() {
       <StatusBar
         connected={connected}
         ewStatus={ewStatus}
+        ewSpoofStatus={ewSpoofStatus}
         trackCount={tracks.length}
         onToggleEW={handleToggleEW}
+        onToggleEWSpoof={handleToggleEWSpoof}
       />
 
       <main className="p-6">
