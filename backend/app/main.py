@@ -112,3 +112,18 @@ async def toggle_ew(source_type: SourceType):
 @app.get("/ew/status")
 async def ew_status():
     return ew_simulator.status()
+
+
+@app.post("/ew/spoof/toggle", dependencies=[Depends(require_api_key)])
+async def toggle_ew_spoof(source_type: SourceType):
+    """Flip spoofing on/off for a given source type — a fabricated
+    contact may appear alongside genuine readings, indistinguishable
+    from a real one by design (see ew/ew_simulator.py). Requires
+    X-API-Key if API_KEY is configured."""
+    new_state = ew_simulator.toggle_spoof(source_type)
+    return {"source_type": source_type.value, "spoofing": new_state}
+
+
+@app.get("/ew/spoof/status")
+async def ew_spoof_status():
+    return ew_simulator.spoof_status()

@@ -60,6 +60,15 @@ class BaseFeed(ABC):
                     continue
 
             await self.queue.put(reading)
+
+            # If this source is being spoofed, an extra phantom contact
+            # may appear alongside the genuine reading this cycle — see
+            # ew_simulator.maybe_spoof_reading's docstring for why it's
+            # generated identically to a real reading rather than tagged.
+            spoofed = ew_simulator.maybe_spoof_reading(self.source_type, self._generate_reading)
+            if spoofed is not None:
+                await self.queue.put(spoofed)
+
             await asyncio.sleep(self.interval_seconds)
 
     def stop(self):
