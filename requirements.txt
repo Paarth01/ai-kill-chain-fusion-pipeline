@@ -10,6 +10,7 @@ redis==5.0.8
 sqlalchemy[asyncio]==2.0.35
 aiosqlite==0.20.0
 asyncpg==0.29.0
+prometheus-client==0.21.0
 
 # Optional, heavy — see requirements-detection.txt for real YOLOv8n mode
 # (ultralytics, opencv-python-headless)

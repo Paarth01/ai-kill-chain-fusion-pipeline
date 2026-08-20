@@ -64,5 +64,9 @@ class Settings:
     # same async code path handles both (see persistence/db.py).
     DATABASE_URL: str | None = os.getenv("DATABASE_URL") or None
 
+    # "text" (human-readable, default) or "json" (one object per line —
+    # what you want once this runs somewhere with a log aggregator).
+    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "text")
+
 
 settings = Settings()

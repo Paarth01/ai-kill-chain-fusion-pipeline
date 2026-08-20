@@ -1,8 +1,10 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from backend.app.auth import require_api_key
 from backend.app.config import settings
@@ -13,10 +15,15 @@ from backend.app.feeds.uav_feed import UAVFeed
 from backend.app.feeds.vehicle_ir_feed import VehicleIRFeed
 from backend.app.fusion.fusion_engine import fusion_engine
 from backend.app.fusion.queue_backend import get_queue_backend
+from backend.app.logging_config import configure_logging
 from backend.app.models.schemas import SourceType
+from backend.app.observability.metrics import http_requests_total, render_metrics
 from backend.app.persistence.db import history_store
 from backend.app.state_machine.f2t2ea import acknowledge_track, advance_stage, assess_track
 from backend.app.streaming.sse import get_track_stream
+
+configure_logging()
+logger = logging.getLogger("backend.app.main")
 
 background_tasks: list[asyncio.Task] = []
 reading_queue = get_queue_backend()
@@ -51,6 +58,7 @@ async def fusion_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Sentinel-FFT2EA starting up (log_format=%s)", settings.LOG_FORMAT)
     await history_store.init_db()
 
     feeds = [
@@ -66,6 +74,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    logger.info("Sentinel-FFT2EA shutting down")
     for feed in feeds:
         feed.stop()
     for task in background_tasks:
@@ -84,9 +93,27 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def count_requests(request: Request, call_next):
+    """Counts every request for /metrics. Deliberately excludes /metrics
+    itself from the count — a metrics endpoint counting scrapes of itself
+    is noise, not signal, for anyone actually reading the dashboard."""
+    response = await call_next(request)
+    if request.url.path != "/metrics":
+        http_requests_total.labels(
+            method=request.method, path=request.url.path, status_code=response.status_code
+        ).inc()
+    return response
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "active_tracks": len(fusion_engine.tracks)}
+
+
+@app.get("/metrics")
+async def metrics():
+    return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/stream/tracks")
