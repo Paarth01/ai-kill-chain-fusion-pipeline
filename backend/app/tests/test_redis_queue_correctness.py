@@ -4,13 +4,17 @@ performance assertion (timing thresholds in CI are inherently flaky), just
 confirming put()/get() actually round-trip real messages through a real
 Redis instance without loss or corruption.
 
-Skips cleanly if Redis isn't reachable, the same pattern
-test_yolo_detector.py uses for its optional dependency (pytest.importorskip)
-— this isn't part of the default CI backend-tests job (no Redis service
-configured there); run it locally against `redis-server &`.
+Skips cleanly if Redis isn't reachable (via REDIS_URL, defaulting to
+localhost:6379 for local runs). Runs for real in CI — the backend-tests
+job in .github/workflows/ci.yml spins up a real Redis service container
+for exactly this — so this isn't skip-only-and-hope; it's actually
+exercised on every push, not just when someone happens to have a local
+Redis running.
 """
 
 import asyncio
+
+import os
 
 import pytest
 import pytest_asyncio
@@ -18,7 +22,7 @@ import pytest_asyncio
 from backend.app.fusion.queue_backend import RedisQueueBackend
 from backend.app.models.schemas import Coordinates, SensorReading, SourceType
 
-REDIS_URL = "redis://localhost:6379/0"
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 TEST_KEY = "sentinel:test:benchmark_correctness"
 
 
@@ -33,7 +37,7 @@ def _redis_reachable() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(not _redis_reachable(), reason="Redis not reachable at localhost:6379")
+pytestmark = pytest.mark.skipif(not _redis_reachable(), reason=f"Redis not reachable at {REDIS_URL}")
 
 
 @pytest_asyncio.fixture

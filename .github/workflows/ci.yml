@@ -9,6 +9,16 @@ on:
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +32,14 @@ jobs:
 
       - name: Run tests
         run: pytest backend/app/tests -v
+        env:
+          # Makes test_redis_queue_correctness.py's reachability check
+          # pass and actually run those tests here, instead of skipping
+          # them — they only ran locally before this. test_persistence_postgres.py
+          # still skips (no Postgres service configured) — verified
+          # separately against a real local Postgres instance instead
+          # (see the commit that added those tests).
+          REDIS_URL: redis://localhost:6379/0
 
   frontend-build:
     runs-on: ubuntu-latest
