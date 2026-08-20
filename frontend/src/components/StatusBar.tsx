@@ -49,6 +49,7 @@ export default function StatusBar({
                   <button
                     key={source}
                     onClick={() => onToggleEW(source)}
+                    aria-label={`EW jam toggle: ${SOURCE_LABELS[source]}`}
                     className={`focus-ring rounded border px-2 py-1 text-[10px] font-mono tracking-wide transition-colors ${
                       degraded
                         ? "border-console-critical text-console-critical bg-console-critical/10"
@@ -71,6 +72,7 @@ export default function StatusBar({
                   <button
                     key={source}
                     onClick={() => onToggleEWSpoof(source)}
+                    aria-label={`EW spoof toggle: ${SOURCE_LABELS[source]}`}
                     className={`focus-ring rounded border px-2 py-1 text-[10px] font-mono tracking-wide transition-colors ${
                       spoofing
                         ? "border-console-warn text-console-warn bg-console-warn/10"

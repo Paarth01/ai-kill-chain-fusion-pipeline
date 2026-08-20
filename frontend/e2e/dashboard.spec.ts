@@ -54,7 +54,11 @@ test("EW toggle button reflects degraded state after clicking", async ({ page })
   await page.goto("/");
   await expect(page.getByText("LIVE FEED")).toBeVisible({ timeout: 15_000 });
 
-  const uavToggle = page.getByText("UAV/UAS");
+  // Scoped by aria-label, not visible text — "UAV/UAS" alone is now
+  // ambiguous (it also appears in the EW SPOOF toggle row), so this
+  // targets the jam toggle specifically. Also makes the test resilient
+  // to future additions of more EW-related toggle rows.
+  const uavToggle = page.getByRole("button", { name: "EW jam toggle: UAV/UAS" });
   const initialState = await uavToggle.getAttribute("aria-pressed");
 
   await uavToggle.click();
@@ -62,6 +66,20 @@ test("EW toggle button reflects degraded state after clicking", async ({ page })
   // The button's pressed state should flip after the round trip to the
   // backend and the next SSE broadcast reflects it back.
   await expect(uavToggle).toHaveAttribute("aria-pressed", initialState === "true" ? "false" : "true", {
+    timeout: 5_000,
+  });
+});
+
+test("EW spoof toggle button reflects state independently of the jam toggle", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("LIVE FEED")).toBeVisible({ timeout: 15_000 });
+
+  const spoofToggle = page.getByRole("button", { name: "EW spoof toggle: ELINT" });
+  const initialState = await spoofToggle.getAttribute("aria-pressed");
+
+  await spoofToggle.click();
+
+  await expect(spoofToggle).toHaveAttribute("aria-pressed", initialState === "true" ? "false" : "true", {
     timeout: 5_000,
   });
 });
