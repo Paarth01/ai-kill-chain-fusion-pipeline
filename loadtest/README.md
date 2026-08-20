@@ -97,8 +97,45 @@ feed producers and the fusion consumer loop, internal to the process, not
 in the HTTP request path. So this run confirms **the API layer stays
 healthy and comparably fast while the fusion pipeline is Redis-backed
 underneath it** — it is not a direct benchmark of Redis queue throughput
-itself. A true queue-throughput benchmark would need a separate
-producer/consumer test hitting `RedisQueueBackend.put()`/`.get()`
-directly, which isn't included here.
+itself. See below for that.
 
 Raw CSVs for this run are in `results/` with the `run_redis_` prefix.
+
+## Direct Redis queue throughput
+
+`redis_queue_benchmark.py` is the benchmark the caveat above says is
+missing — it hits `RedisQueueBackend.put()`/`.get()` directly, no FastAPI,
+no CORS, no auth, no HTTP at all.
+
+```bash
+redis-server &
+PYTHONPATH=. python loadtest/redis_queue_benchmark.py
+```
+
+**Results (measured, 5,000 messages, local Redis):**
+
+| Operation | Throughput |
+|---|---|
+| `put()` sequential | 8,356 ops/sec |
+| `get()` sequential | 8,688 ops/sec |
+| Concurrent producer + consumer (end-to-end) | 4,552 ops/sec |
+
+The concurrent number is the more realistic one — it mirrors the real
+`fusion_loop()`/feed-producer relationship (both running at once against
+the same queue) rather than the sequential put-then-get numbers above it,
+and roughly halves from the sequential figures as expected once producer
+and consumer are genuinely contending for the same connection/event loop
+rather than running one after the other.
+
+For scale: this exceeds every feed's configured interval by several
+orders of magnitude (the fastest default feed interval is 2 seconds, i.e.
+0.5 readings/sec) — the queue backend is nowhere close to being the
+bottleneck in this system's normal operation, even in distributed mode.
+
+Correctness (not just throughput) is verified separately in
+`backend/app/tests/test_redis_queue_correctness.py` — 3 tests confirming
+put/get round-trips preserve message identity at volume (200 messages)
+and that concurrent producer/consumer access doesn't drop messages.
+Skipped automatically if Redis isn't reachable (not part of the default
+CI backend-tests job, which has no Redis service configured) — run it
+locally against `redis-server &`.
