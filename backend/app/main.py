@@ -79,6 +79,7 @@ async def lifespan(app: FastAPI):
         feed.stop()
     for task in background_tasks:
         task.cancel()
+    await reading_queue.close()
     await history_store.dispose()
 
 

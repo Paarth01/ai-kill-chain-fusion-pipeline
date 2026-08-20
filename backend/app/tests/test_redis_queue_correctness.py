@@ -46,7 +46,9 @@ async def backend():
 
     b = RedisQueueBackend(REDIS_URL, TEST_KEY)
     yield b
-    # Clean up whatever this test left in the queue.
+    await b.close()  # closes RedisQueueBackend's own connection explicitly
+    # Clean up whatever this test left in the queue, using a separate
+    # short-lived client for the delete.
     client = redis.from_url(REDIS_URL, decode_responses=True)
     await client.delete(TEST_KEY)
     await client.aclose()

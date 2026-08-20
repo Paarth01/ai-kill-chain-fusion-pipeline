@@ -24,6 +24,7 @@ from backend.app.models.schemas import SensorReading
 class QueueBackend(Protocol):
     async def put(self, reading: SensorReading) -> None: ...
     async def get(self) -> SensorReading: ...
+    async def close(self) -> None: ...
 
 
 class InMemoryQueueBackend:
@@ -35,6 +36,9 @@ class InMemoryQueueBackend:
 
     async def get(self) -> SensorReading:
         return await self._queue.get()
+
+    async def close(self) -> None:
+        pass  # nothing to clean up — no external connection held
 
 
 class RedisQueueBackend:
@@ -54,6 +58,18 @@ class RedisQueueBackend:
         # BRPOP blocks server-side until an item is available; timeout=0 = wait forever.
         _, raw = await self._redis.brpop(self._key)
         return SensorReading.model_validate_json(raw)
+
+    async def close(self) -> None:
+        """Explicitly closes the underlying Redis connection. Without
+        this, the connection is only closed by Python's garbage collector
+        calling __del__ at some later, unpredictable point — potentially
+        after the event loop that owned it has already closed, which
+        produces noisy (but harmless to test results) "Exception ignored
+        ... RuntimeError: Event loop is closed" messages in logs/CI
+        output. Callers (main.py's lifespan shutdown, test fixtures)
+        should call this explicitly during teardown rather than relying
+        on GC timing."""
+        await self._redis.aclose()
 
 
 def get_queue_backend() -> QueueBackend:

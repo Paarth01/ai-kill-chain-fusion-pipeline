@@ -81,11 +81,13 @@ async def main():
     put_elapsed = await benchmark_put(put_backend, N_MESSAGES)
     put_throughput = N_MESSAGES / put_elapsed
     print(f"put():  {N_MESSAGES} messages in {put_elapsed:.3f}s  ->  {put_throughput:,.0f} ops/sec")
+    await put_backend.close()
 
     get_backend = RedisQueueBackend(REDIS_URL, BENCHMARK_KEY)
     get_elapsed = await benchmark_get(get_backend, N_MESSAGES)
     get_throughput = N_MESSAGES / get_elapsed
     print(f"get():  {N_MESSAGES} messages in {get_elapsed:.3f}s  ->  {get_throughput:,.0f} ops/sec")
+    await get_backend.close()
 
     concurrent_backend_put = RedisQueueBackend(REDIS_URL, BENCHMARK_KEY + ":concurrent")
     concurrent_backend_get = RedisQueueBackend(REDIS_URL, BENCHMARK_KEY + ":concurrent")
@@ -95,6 +97,8 @@ async def main():
         f"concurrent put+get: {N_MESSAGES} messages in {concurrent_elapsed:.3f}s  "
         f"->  {concurrent_throughput:,.0f} ops/sec (end-to-end)"
     )
+    await concurrent_backend_put.close()
+    await concurrent_backend_get.close()
 
 
 if __name__ == "__main__":
