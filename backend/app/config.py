@@ -59,5 +59,10 @@ class Settings:
     # silently left as a gap.
     API_KEY: str | None = os.getenv("API_KEY") or None
 
+    # Stage-event history persistence. Defaults to a local SQLite file
+    # (zero setup); set to a postgres:// URL to use Postgres instead — the
+    # same async code path handles both (see persistence/db.py).
+    DATABASE_URL: str | None = os.getenv("DATABASE_URL") or None
+
 
 settings = Settings()

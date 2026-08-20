@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.auth import require_api_key
@@ -14,6 +14,7 @@ from backend.app.feeds.vehicle_ir_feed import VehicleIRFeed
 from backend.app.fusion.fusion_engine import fusion_engine
 from backend.app.fusion.queue_backend import get_queue_backend
 from backend.app.models.schemas import SourceType
+from backend.app.persistence.db import history_store
 from backend.app.state_machine.f2t2ea import acknowledge_track, advance_stage, assess_track
 from backend.app.streaming.sse import get_track_stream
 
@@ -21,17 +22,37 @@ background_tasks: list[asyncio.Task] = []
 reading_queue = get_queue_backend()
 
 
+async def _log_track_event(track) -> None:
+    await history_store.log_stage_event(
+        track_id=track.track_id,
+        stage=track.stage.value,
+        severity=track.severity.value,
+        confidence=track.confidence,
+        contributing_sources=[s.value for s in track.contributing_sources],
+        timestamp=track.last_updated,
+    )
+
+
 async def fusion_loop():
     """Consumes normalized readings off the shared queue, fuses them, and
-    advances each affected track's F2T2EA stage."""
+    advances each affected track's F2T2EA stage. Logs a history event on
+    a new track's creation and on every subsequent stage change — not on
+    every merge, which would flood the history table with same-stage
+    reading-count bumps that don't represent anything happening."""
     while True:
         reading = await reading_queue.get()
         track = fusion_engine.ingest(reading)
+        is_new_track = track.reading_count == 1
+        prev_stage = track.stage
         advance_stage(track)
+        if is_new_track or track.stage != prev_stage:
+            await _log_track_event(track)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await history_store.init_db()
+
     feeds = [
         VehicleIRFeed(reading_queue, settings.VEHICLE_IR_INTERVAL),
         UAVFeed(reading_queue, settings.UAV_UAS_INTERVAL),
@@ -49,6 +70,7 @@ async def lifespan(app: FastAPI):
         feed.stop()
     for task in background_tasks:
         task.cancel()
+    await history_store.dispose()
 
 
 app = FastAPI(title="Sentinel-FFT2EA", lifespan=lifespan)
@@ -89,6 +111,7 @@ async def ack_track(track_id: str):
         acknowledge_track(track)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    await _log_track_event(track)
     return track.model_dump(mode="json")
 
 
@@ -98,7 +121,23 @@ async def close_track(track_id: str, summary: str = ""):
     if not track:
         raise HTTPException(404, "Track not found")
     assess_track(track, summary)
+    await _log_track_event(track)
     return track.model_dump(mode="json")
+
+
+@app.get("/tracks/{track_id}/history")
+async def track_history(track_id: str):
+    """Full stage-transition history for one track, from persistent
+    storage — survives a server restart, unlike the in-memory
+    FusionEngine's live track state."""
+    return await history_store.get_track_history(track_id)
+
+
+@app.get("/history")
+async def recent_history(limit: int = Query(default=100, ge=1, le=1000)):
+    """Most recent stage-transition events across all tracks — a global
+    activity log usable for a simple session replay."""
+    return await history_store.get_recent_history(limit=limit)
 
 
 @app.post("/ew/toggle", dependencies=[Depends(require_api_key)])
