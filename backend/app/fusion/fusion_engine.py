@@ -4,10 +4,15 @@ by spatial proximity + recency, merging corroborating readings into a
 single track and boosting confidence when multiple independent source
 types agree. Unmatched readings spawn a new track.
 
-This is intentionally simple (nearest-neighbor + threshold) rather than a
-full Kalman-filter/JPDA implementation — the point of this scaffold is to
-demonstrate the fusion *architecture* and the F2T2EA progression it feeds,
-not to ship a production-grade tracker.
+Matching uses a predicted position (predict_position()) — a constant-
+velocity estimate extrapolated from the track's last two updates — rather
+than just the track's last-known position. This meaningfully improves
+matching for a moving target: a fast-moving track whose next reading
+lands outside the raw distance threshold from its *last* position can
+still match correctly if that position was predictable from its recent
+heading. This is explicitly NOT full multi-hypothesis tracking (JPDA) —
+there's a single predicted position per track, not a maintained set of
+competing hypotheses — named and scoped honestly rather than oversold.
 """
 
 from __future__ import annotations
@@ -28,6 +33,37 @@ def _haversine_km(a: Coordinates, b: Coordinates) -> float:
     return 2 * R * math.asin(math.sqrt(h))
 
 
+def predict_position(track: FusedTrack, at_time: datetime) -> Coordinates:
+    """Extrapolates the track's position at `at_time` using its current
+    constant-velocity estimate (degrees/second). With zero velocity (a
+    brand-new track, or one that hasn't moved) this is just the track's
+    current position — the prediction gracefully degrades to the old
+    behavior rather than needing a special case."""
+    dt = (at_time - track.last_updated).total_seconds()
+    return Coordinates(
+        lat=track.coordinates.lat + track.velocity_lat * dt,
+        lon=track.coordinates.lon + track.velocity_lon * dt,
+    )
+
+
+def _update_velocity(track: FusedTrack, new_position: Coordinates, new_time: datetime) -> tuple[float, float]:
+    """Simple two-point velocity estimate (degrees/second) between the
+    track's pre-update position and its new merged position. Smoothed
+    against the previous velocity estimate (70% new / 30% old) rather
+    than replaced outright, so one noisy reading doesn't swing the
+    heading estimate wildly."""
+    dt = (new_time - track.last_updated).total_seconds()
+    if dt <= 0:
+        return track.velocity_lat, track.velocity_lon
+
+    raw_v_lat = (new_position.lat - track.coordinates.lat) / dt
+    raw_v_lon = (new_position.lon - track.coordinates.lon) / dt
+
+    smoothed_v_lat = 0.7 * raw_v_lat + 0.3 * track.velocity_lat
+    smoothed_v_lon = 0.7 * raw_v_lon + 0.3 * track.velocity_lon
+    return smoothed_v_lat, smoothed_v_lon
+
+
 class FusionEngine:
     def __init__(self):
         self.tracks: dict[str, FusedTrack] = {}
@@ -45,7 +81,8 @@ class FusionEngine:
             if time_gap > settings.FUSION_TIME_WINDOW_SECONDS:
                 continue
 
-            distance = _haversine_km(reading.coordinates, track.coordinates)
+            predicted = predict_position(track, reading.timestamp)
+            distance = _haversine_km(reading.coordinates, predicted)
             if distance > settings.FUSION_DISTANCE_THRESHOLD_KM:
                 continue
 
@@ -69,7 +106,7 @@ class FusionEngine:
     def _merge(self, track: FusedTrack, reading: SensorReading) -> FusedTrack:
         # Weighted-average position by confidence.
         total_weight = track.confidence + reading.confidence
-        track.coordinates = Coordinates(
+        new_position = Coordinates(
             lat=round(
                 (track.coordinates.lat * track.confidence + reading.coordinates.lat * reading.confidence)
                 / total_weight,
@@ -81,6 +118,9 @@ class FusionEngine:
                 5,
             ),
         )
+
+        track.velocity_lat, track.velocity_lon = _update_velocity(track, new_position, reading.timestamp)
+        track.coordinates = new_position
 
         is_new_source = reading.source_type not in track.contributing_sources
         if is_new_source:

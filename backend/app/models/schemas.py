@@ -75,5 +75,15 @@ class FusedTrack(BaseModel):
     operator_ack: bool = False
     degraded: bool = False
 
+    # Constant-velocity estimate (degrees/second), used by the fusion
+    # engine to predict where a moving track should be at the next
+    # update rather than matching against its last-known position — see
+    # fusion/fusion_engine.py's predict_position(). This is NOT full
+    # multi-hypothesis tracking (JPDA) — no competing hypotheses are
+    # maintained, just a single predicted position per track — named
+    # accordingly rather than oversold.
+    velocity_lat: float = 0.0
+    velocity_lon: float = 0.0
+
     class Config:
         use_enum_values = False
