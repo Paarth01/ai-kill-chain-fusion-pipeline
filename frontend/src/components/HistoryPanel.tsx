@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchRecentHistory } from "../api";
 import type { StageEvent } from "../types";
 
@@ -11,10 +11,14 @@ const STAGE_COLORS: Record<string, string> = {
   assess: "text-console-muted",
 };
 
+const AUTO_REFRESH_INTERVAL_MS = 5000;
+
 export default function HistoryPanel() {
   const [events, setEvents] = useState<StageEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -33,19 +37,50 @@ export default function HistoryPanel() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(load, AUTO_REFRESH_INTERVAL_MS);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    // Always clean up on unmount or before re-running this effect, so a
+    // toggled-off panel (or an unmounted one, e.g. switching views) never
+    // leaves a stray interval polling in the background.
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [autoRefresh]);
+
   return (
     <div className="rounded-md border border-console-border bg-console-panelRaised">
       <div className="flex items-center justify-between border-b border-console-border px-4 py-2">
         <span className="font-mono text-xs tracking-wider text-console-muted">
           STAGE TRANSITION LOG (persistent — survives a restart)
         </span>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="focus-ring rounded border border-console-border px-2 py-0.5 text-[10px] font-mono text-console-muted hover:text-console-text disabled:opacity-50"
-        >
-          {loading ? "LOADING…" : "REFRESH"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAutoRefresh((prev) => !prev)}
+            aria-pressed={autoRefresh}
+            className={`focus-ring rounded border px-2 py-0.5 text-[10px] font-mono tracking-wide transition-colors ${
+              autoRefresh
+                ? "border-console-good text-console-good bg-console-good/10"
+                : "border-console-border text-console-muted hover:text-console-text"
+            }`}
+          >
+            AUTO: {autoRefresh ? "ON" : "OFF"}
+          </button>
+          <button
+            onClick={load}
+            disabled={loading}
+            className="focus-ring rounded border border-console-border px-2 py-0.5 text-[10px] font-mono text-console-muted hover:text-console-text disabled:opacity-50"
+          >
+            {loading ? "LOADING…" : "REFRESH"}
+          </button>
+        </div>
       </div>
 
       <div className="max-h-[480px] overflow-y-auto">
