@@ -344,14 +344,14 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | Synthetic multi-source feeds (IR, UAV, ELINT, C2)      | Done   |
 | Fusion engine w/ predictive (constant-velocity) matching | Done — see note below |
 | F2T2EA state machine w/ explicit operator gate         | Done   |
-| EW degradation + spoofing simulator                    | Done   |
+| EW degradation + spoofing simulator (incl. dashboard controls) | Done |
 | SSE streaming API                                      | Done   |
-| React operator dashboard (grid + map + history views)  | Done   |
-| Stage-event history persistence (SQLite/Postgres)      | Done   |
+| React operator dashboard (grid + map + history views, auto-refresh) | Done |
+| Stage-event history persistence (SQLite + real-Postgres-verified) | Done |
 | Structured logging (text/JSON) + Prometheus `/metrics` | Done   |
-| Backend test suite (41 tests)                          | Done   |
-| Frontend test suite (28 tests, Vitest + Testing Library) | Done |
-| CI (backend tests, frontend typecheck/tests/build)      | Done   |
+| Backend test suite (54 tests — all pass w/ Redis+Postgres+YOLO live) | Done |
+| Frontend test suite (32 tests, Vitest + Testing Library) | Done |
+| CI (backend tests incl. live Redis service, frontend typecheck/tests/build) | Done |
 | Real YOLOv8n detection mode (optional, verified)        | Done   |
 | Configurable model weights + video/webcam source (optional, verified) | Done |
 | Redis-backed distributed queue mode (optional, verified) | Done   |
@@ -429,18 +429,27 @@ real feed uses, deliberately indistinguishable from genuine data. A
 spoofed reading can flow all the way through fusion and reach
 TARGET/ENGAGE like any real one; left that way on purpose, since a
 trivially-filterable spoofed reading wouldn't demonstrate the actual
-vulnerability. No dashboard control panel for this yet — reachable via
-the API and `test_ew_spoofing.py`, not yet wired into the StatusBar.
+vulnerability. Live dashboard controls in the StatusBar (a second "EW
+SPOOF" row, amber-styled, independent of the "EW JAM" degradation row)
+— a source can be jammed, spoofed, both, or neither.
 
 ## Persistent history & replay
 
 Every track's F2T2EA stage transitions are logged to persistent storage
-(SQLite by default, Postgres via `DATABASE_URL`) — survives a server
-restart, unlike the in-memory `FusionEngine`. `GET /tracks/{id}/history`
-for one track's timeline, `GET /history?limit=N` for a global recent-
-activity feed. The dashboard's third view tab ("history") shows this as
-a simple scrollable log — not an animated replay, a real design choice
-given the scope, not a shortcut hidden as a feature.
+(SQLite by default, Postgres via `DATABASE_URL` — verified against a real
+local PostgreSQL 16 instance, not just assumed compatible) — survives a
+server restart, unlike the in-memory `FusionEngine`. `GET
+/tracks/{id}/history` for one track's timeline, `GET /history?limit=N`
+for a global recent-activity feed. The dashboard's third view tab
+("history") shows this as a scrollable log with an optional 5s
+auto-refresh toggle — not an animated replay, a real design choice given
+the scope of everything else here, not a shortcut hidden as a feature.
+
+## Resume bullets
+
+`RESUME_BULLETS.md` — drafted to match this portfolio's existing
+metric-driven style, with a short 3-bullet version and a longer
+technical-depth alternate.
 
 ## Notes on scope & framing
 
