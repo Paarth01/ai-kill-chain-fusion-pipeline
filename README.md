@@ -157,6 +157,11 @@ Then:
 - Close out an ENGAGE-stage track → ASSESS (requires `X-API-Key` if set): `POST http://localhost:8000/tracks/{id}/assess?summary=...`
 - Toggle EW degradation on a feed (requires `X-API-Key` if set): `POST http://localhost:8000/ew/toggle?source_type=uav_uas`
 - Health check: `GET http://localhost:8000/health`
+- Toggle EW spoofing on a feed (requires `X-API-Key` if set): `POST http://localhost:8000/ew/spoof/toggle?source_type=elint`
+- EW spoofing status: `GET http://localhost:8000/ew/spoof/status`
+- One track's full stage-transition history: `GET http://localhost:8000/tracks/{id}/history`
+- Global recent activity feed: `GET http://localhost:8000/history?limit=100`
+- Prometheus metrics: `GET http://localhost:8000/metrics`
 
 **Auth note:** by default `API_KEY` is unset and none of this is
 enforced — fine for local dev, not fine for a real deployment. Set
@@ -337,13 +342,15 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | Piece                                                | Status |
 |-------------------------------------------------------|--------|
 | Synthetic multi-source feeds (IR, UAV, ELINT, C2)      | Done   |
-| Fusion engine (spatial-temporal matching)              | Done   |
+| Fusion engine w/ predictive (constant-velocity) matching | Done — see note below |
 | F2T2EA state machine w/ explicit operator gate         | Done   |
-| EW degradation simulator                               | Done   |
+| EW degradation + spoofing simulator                    | Done   |
 | SSE streaming API                                      | Done   |
-| React operator dashboard (grid + map views)            | Done   |
-| Backend test suite (22 tests)                          | Done   |
-| Frontend test suite (19 tests, Vitest + Testing Library) | Done |
+| React operator dashboard (grid + map + history views)  | Done   |
+| Stage-event history persistence (SQLite/Postgres)      | Done   |
+| Structured logging (text/JSON) + Prometheus `/metrics` | Done   |
+| Backend test suite (41 tests)                          | Done   |
+| Frontend test suite (28 tests, Vitest + Testing Library) | Done |
 | CI (backend tests, frontend typecheck/tests/build)      | Done   |
 | Real YOLOv8n detection mode (optional, verified)        | Done   |
 | Configurable model weights + video/webcam source (optional, verified) | Done |
@@ -352,10 +359,19 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | API key auth on mutating endpoints (verified)           | Done   |
 | Live map view (Leaflet, dark tiles, severity-colored tracks) | Done |
 | Load test suite (Locust), in-memory + Redis-backed, measured | Done — see `loadtest/README.md` |
+| Direct Redis queue-throughput benchmark, measured        | Done — see `loadtest/README.md` |
 | LICENSE (MIT)                                            | Done   |
 | Full-stack Docker Compose (backend + Redis + frontend)  | Written, not build-tested — see note below |
 | E2E browser test (Playwright) of the live dashboard      | Written, wired into CI, not run in this sandbox — see note below |
 | Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
+
+**On "predictive (constant-velocity) matching":** named deliberately, not
+oversold — this is a single predicted position per track extrapolated
+from a smoothed velocity estimate, not full multi-hypothesis tracking
+(JPDA/Kalman with maintained competing hypotheses). It's a real,
+measured improvement to the same underlying "matching a moving target"
+problem (see `backend/app/fusion/fusion_engine.py`'s module docstring and
+`test_predictive_matching.py`), described as exactly that and no more.
 
 **On the two "written, not verified here" rows above:** this sandbox's
 network only allows a specific domain allowlist (npm, PyPI, GitHub,
@@ -386,17 +402,45 @@ connections. Measured against a single local instance: **5,291 requests
 at 300 concurrent users, 0 failures, ~176 req/s, p95 69ms, p99 130ms** in
 the default in-memory mode, and a comparable **5,359 requests, 0
 failures, ~178 req/s** with the Redis-backed distributed queue path
-active. Full results, methodology, and an explicit note on what the
-Redis-mode run does and doesn't measure, in `loadtest/README.md`.
+active. A separate direct benchmark (`redis_queue_benchmark.py`, bypassing
+HTTP entirely) measured the queue backend itself: **8,356 put/sec, 8,688
+get/sec, 4,552 ops/sec concurrent producer+consumer** — several orders of
+magnitude above what any feed's configured interval actually demands.
+Full results, methodology, and correctness tests (not just throughput)
+in `loadtest/README.md`.
 
-## Possible extensions (not required, not started)
+## Observability
 
-- A true Redis queue-throughput benchmark hitting `RedisQueueBackend`
-  directly (the load test above confirms the API layer stays healthy
-  under Redis-backed fusion, not raw queue throughput itself)
-- Frontend tests for `App.tsx`'s SSE-driven state and sort order (current
-  frontend tests cover the pure logic and individual components; `App`
-  itself isn't covered yet)
+- **Structured logging** (`backend/app/logging_config.py`): `LOG_FORMAT=text`
+  (default, human-readable) or `LOG_FORMAT=json` (one object per line,
+  for a real log aggregator).
+- **Metrics** (`GET /metrics`, Prometheus text format): active track
+  count, tracks-by-F2T2EA-stage, EW-degraded and EW-spoofing source
+  counts, HTTP request counts by method/path/status. Gauges are recomputed
+  fresh from live state on every scrape rather than updated incrementally,
+  so they can't drift out of sync with the state they reflect.
+
+## EW spoofing (in addition to degradation)
+
+Beyond dropping/weakening readings (degradation), `POST
+/ew/spoof/toggle?source_type=...` injects a fabricated-but-plausible
+contact into a source's feed — generated by the exact same function a
+real feed uses, deliberately indistinguishable from genuine data. A
+spoofed reading can flow all the way through fusion and reach
+TARGET/ENGAGE like any real one; left that way on purpose, since a
+trivially-filterable spoofed reading wouldn't demonstrate the actual
+vulnerability. No dashboard control panel for this yet — reachable via
+the API and `test_ew_spoofing.py`, not yet wired into the StatusBar.
+
+## Persistent history & replay
+
+Every track's F2T2EA stage transitions are logged to persistent storage
+(SQLite by default, Postgres via `DATABASE_URL`) — survives a server
+restart, unlike the in-memory `FusionEngine`. `GET /tracks/{id}/history`
+for one track's timeline, `GET /history?limit=N` for a global recent-
+activity feed. The dashboard's third view tab ("history") shows this as
+a simple scrollable log — not an animated replay, a real design choice
+given the scope, not a shortcut hidden as a feature.
 
 ## Notes on scope & framing
 
