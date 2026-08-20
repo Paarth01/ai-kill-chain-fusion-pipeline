@@ -35,3 +35,12 @@ export interface TracksUpdatePayload {
   tracks: FusedTrack[];
   ew_status: EWStatus;
 }
+
+export interface StageEvent {
+  track_id: string;
+  stage: F2T2EAStage;
+  severity: ThreatSeverity;
+  confidence: number;
+  contributing_sources: SourceType[];
+  timestamp: string;
+}
