@@ -1,0 +1,5 @@
+# Created by `vercel link` — holds the project/org ID and a short-lived
+# VERCEL_OIDC_TOKEN in .env.local. Never commit either.
+.vercel
+.env.local
+.env.*.local
