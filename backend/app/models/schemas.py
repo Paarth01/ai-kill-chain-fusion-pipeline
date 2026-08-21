@@ -22,6 +22,7 @@ class SourceType(str, Enum):
     UAV_UAS = "uav_uas"
     ELINT = "elint"
     LEGACY_C2 = "legacy_c2"
+    HUMINT = "humint"
 
 
 class ThreatSeverity(str, Enum):
@@ -43,6 +44,45 @@ class F2T2EAStage(str, Enum):
 class Coordinates(BaseModel):
     lat: float
     lon: float
+
+
+class HumintConfidence(str, Enum):
+    """Human sources report a qualitative confidence band, not a number —
+    an informant says "fairly sure", not "0.62". Mapped to the numeric
+    scale SensorReading needs by HUMINT_CONFIDENCE_SCORES below."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+# Rule-based band -> score. Deliberately not NLP: the reporting officer's
+# own stated confidence is better evidence than anything inferred from the
+# report's prose would be.
+HUMINT_CONFIDENCE_SCORES: dict[HumintConfidence, float] = {
+    HumintConfidence.LOW: 0.25,
+    HumintConfidence.MEDIUM: 0.55,
+    HumintConfidence.HIGH: 0.8,
+}
+
+
+class HumintReport(BaseModel):
+    """Wire format for a human intelligence report, POSTed to
+    /ingest/humint. Unlike the four sensor feeds, HUMINT is push-based —
+    a person files a report when they have something, so there's no
+    polling interval and no BaseFeed subclass for it.
+
+    `location` is required with no default: a report that can't be placed
+    on the map can't be fused (fusion matches on position), so it's
+    rejected at the schema boundary rather than silently defaulted to
+    coordinates nobody observed.
+    """
+
+    source_id: str
+    report_text: str
+    location: Coordinates
+    confidence: HumintConfidence
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
 class SensorReading(BaseModel):

@@ -10,13 +10,14 @@ from backend.app.auth import require_api_key
 from backend.app.config import settings
 from backend.app.ew.ew_simulator import ew_simulator
 from backend.app.feeds.elint_feed import ELINTFeed
+from backend.app.feeds.humint_ingest import build_contact_from_humint
 from backend.app.feeds.legacy_c2_feed import LegacyC2Feed
 from backend.app.feeds.uav_feed import UAVFeed
 from backend.app.feeds.vehicle_ir_feed import VehicleIRFeed
 from backend.app.fusion.fusion_engine import fusion_engine
 from backend.app.fusion.queue_backend import get_queue_backend
 from backend.app.logging_config import configure_logging
-from backend.app.models.schemas import SourceType
+from backend.app.models.schemas import HumintReport, SourceType
 from backend.app.observability.metrics import http_requests_total, render_metrics
 from backend.app.persistence.db import history_store
 from backend.app.state_machine.f2t2ea import acknowledge_track, advance_stage, assess_track
@@ -151,6 +152,38 @@ async def close_track(track_id: str, summary: str = ""):
     assess_track(track, summary)
     await _log_track_event(track)
     return track.model_dump(mode="json")
+
+
+@app.post("/ingest/humint", dependencies=[Depends(require_api_key)], status_code=202)
+async def ingest_humint(report: HumintReport):
+    """Accepts a human intelligence report and pushes it through the same
+    fusion path as the four sensor feeds.
+
+    202, not 200: the reading is queued here, and `fusion_loop()` fuses it
+    a moment later — so this returns "accepted for processing", not "fused".
+    The response carries `reading_id` so a caller can correlate the report
+    it filed with what turns up in /tracks.
+
+    Gated by X-API-Key like the other mutating endpoints: unauthenticated
+    HUMINT injection would be a spoofing vector into the fusion engine that
+    doesn't even require jamming a radio. A malformed report (missing or
+    non-numeric location, unknown confidence band) is rejected by Pydantic
+    with a 422 before reaching the queue.
+    """
+    reading = build_contact_from_humint(report)
+    await reading_queue.put(reading)
+    logger.info(
+        "HUMINT report ingested (source_id=%s, confidence=%s, reading_id=%s)",
+        report.source_id,
+        report.confidence.value,
+        reading.reading_id,
+    )
+    return {
+        "status": "accepted",
+        "reading_id": reading.reading_id,
+        "source_type": reading.source_type.value,
+        "confidence": reading.confidence,
+    }
 
 
 @app.get("/tracks/{track_id}/history")

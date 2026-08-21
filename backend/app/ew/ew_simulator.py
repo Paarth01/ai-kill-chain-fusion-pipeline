@@ -21,6 +21,14 @@ import random
 
 from backend.app.models.schemas import SensorReading, SourceType
 
+# The four sensor feeds EW applies to. HUMINT is excluded: degradation and
+# spoofing here model RF interference against a sensor (dropped readings,
+# confidence penalties, injected phantom contacts), and a written human
+# report filed via /ingest/humint isn't subject to that. Excluded from the
+# two status dicts rather than from the toggle methods, so the dashboard
+# only offers jam/spoof controls for sources they can actually affect.
+EW_APPLICABLE_SOURCES = [s for s in SourceType if s is not SourceType.HUMINT]
+
 
 class EWSimulator:
     def __init__(self):
@@ -39,7 +47,7 @@ class EWSimulator:
         return source_type in self._degraded_sources
 
     def status(self) -> dict:
-        return {s.value: (s in self._degraded_sources) for s in SourceType}
+        return {s.value: (s in self._degraded_sources) for s in EW_APPLICABLE_SOURCES}
 
     def degrade_reading(self, reading: SensorReading) -> SensorReading | None:
         """Either drop the reading (simulating jamming blackout) or return
@@ -63,7 +71,7 @@ class EWSimulator:
         return source_type in self._spoofing_sources
 
     def spoof_status(self) -> dict:
-        return {s.value: (s in self._spoofing_sources) for s in SourceType}
+        return {s.value: (s in self._spoofing_sources) for s in EW_APPLICABLE_SOURCES}
 
     def maybe_spoof_reading(self, source_type: SourceType, generator) -> SensorReading | None:
         """If spoofing is active for this source, there's a chance a
