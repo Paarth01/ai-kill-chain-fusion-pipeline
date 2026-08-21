@@ -66,75 +66,101 @@ Built to demonstrate hands-on fluency with:
 ```
 sentinel-fft2ea/
 ├── README.md
+├── RESUME_BULLETS.md            # portfolio bullets (short + long version)
 ├── LICENSE                      # MIT (project's own code)
 ├── requirements.txt
 ├── requirements-detection.txt   # optional: real YOLOv8n mode
-├── docker-compose.yml
+├── docker-compose.yml           # full stack: backend + redis + frontend
 ├── Dockerfile                   # backend
 ├── render.yaml                  # backend deployment blueprint
 ├── .env.example
 ├── .gitignore
-├── .github/workflows/ci.yml
+├── .github/workflows/ci.yml     # 3 jobs: backend-tests, frontend-build, e2e
 ├── loadtest/
 │   ├── locustfile.py            # operator-traffic + SSE load profile
+│   ├── redis_queue_benchmark.py # direct queue throughput bench (no HTTP)
 │   ├── requirements.txt
 │   ├── README.md                # measured results, in-memory + Redis
 │   └── results/                 # raw Locust CSVs from actual runs
 ├── backend/
-│   └── app/
-│       ├── main.py                  # FastAPI app, CORS, auth, orchestration loop
-│       ├── config.py                # settings (CORS, API_KEY, YOLO_*, Redis)
-│       ├── auth.py                  # X-API-Key dependency (mutating endpoints only)
+│   └── app/                     # every package below also has an __init__.py
+│       ├── main.py              # FastAPI app, all routes, CORS, fusion loop
+│       ├── config.py            # pydantic-settings — every env var lives here
+│       ├── auth.py              # X-API-Key dependency (mutating endpoints only)
+│       ├── logging_config.py    # structured logging, LOG_FORMAT=text|json
 │       ├── models/
-│       │   └── schemas.py           # Pydantic models & enums
+│       │   └── schemas.py       # Pydantic models & enums
 │       ├── feeds/
-│       │   ├── base.py              # abstract async feed producer
-│       │   ├── vehicle_ir_feed.py   # synthetic OR real YOLOv8n mode
+│       │   ├── base.py             # abstract async feed producer
+│       │   ├── vehicle_ir_feed.py  # synthetic OR real YOLOv8n mode
 │       │   ├── uav_feed.py
 │       │   ├── elint_feed.py
-│       │   └── legacy_c2_feed.py    # deliberately mismatched schema + adapter
+│       │   └── legacy_c2_feed.py   # deliberately mismatched schema + adapter
 │       ├── fusion/
-│       │   ├── fusion_engine.py     # spatial-temporal track matching/merging
-│       │   └── queue_backend.py     # in-memory OR Redis-backed queue
+│       │   ├── fusion_engine.py    # spatial-temporal + predictive matching
+│       │   └── queue_backend.py    # in-memory OR Redis-backed queue
 │       ├── classification/
-│       │   ├── detector.py          # severity classifier
-│       │   └── yolo_detector.py     # real YOLOv8n wrapper — configurable
-│       │                              model path + demo/webcam/video source
+│       │   ├── detector.py         # severity classifier
+│       │   └── yolo_detector.py    # real YOLOv8n wrapper — configurable
+│       │                             model path + demo/webcam/video source
 │       ├── state_machine/
-│       │   └── f2t2ea.py            # stage transition rules
+│       │   └── f2t2ea.py           # stage transitions + operator gate
 │       ├── ew/
-│       │   └── ew_simulator.py      # feed degradation toggle
+│       │   └── ew_simulator.py     # feed degradation + spoofing toggles
 │       ├── streaming/
-│       │   └── sse.py               # SSE endpoint (not auth-gated — see below)
-│       └── tests/
+│       │   └── sse.py              # SSE endpoint (not auth-gated — see below)
+│       ├── persistence/
+│       │   └── db.py               # HistoryStore — SQLite/Postgres via
+│       │                             async SQLAlchemy; stage_events table
+│       ├── observability/
+│       │   └── metrics.py          # Prometheus collectors + render_metrics()
+│       └── tests/                  # 55 tests
 │           ├── test_fusion.py
+│           ├── test_predictive_matching.py
 │           ├── test_state_machine.py
 │           ├── test_queue_backend.py
+│           ├── test_redis_queue_correctness.py  # skipped w/o a live Redis
+│           ├── test_persistence.py
+│           ├── test_persistence_postgres.py     # skipped w/o a live Postgres
+│           ├── test_observability.py
+│           ├── test_ew_spoofing.py
 │           ├── test_auth.py
 │           └── test_yolo_detector.py
 └── frontend/
-    ├── Dockerfile                   # multi-stage: build + nginx serve
-    ├── vercel.json                  # frontend deployment config
-    ├── playwright.config.ts         # E2E config (real browser, live stack)
-    ├── .env.example                 # VITE_API_BASE_URL, VITE_API_KEY
+    ├── package.json / package-lock.json
+    ├── index.html
+    ├── vite.config.ts              # dev proxy to :8000 + Vitest config
+    ├── tsconfig.json
+    ├── tailwind.config.js          # "console" dark palette
+    ├── postcss.config.js
+    ├── playwright.config.ts        # E2E config (real browser, live stack)
+    ├── vercel.json                 # frontend deployment config
+    ├── Dockerfile                  # multi-stage: build + nginx serve
+    ├── .env.example                # VITE_API_BASE_URL, VITE_API_KEY
     ├── e2e/
-    │   └── dashboard.spec.ts        # real-browser test, wired into CI
+    │   └── dashboard.spec.ts       # real-browser test, wired into CI
     └── src/
-        ├── App.tsx
-        ├── api.ts                   # REST + SSE client (base URL + API key)
+        ├── main.tsx                # React entrypoint
+        ├── App.tsx                 # view tabs, SSE wiring, track state
+        ├── App.test.tsx
+        ├── api.ts                  # REST + SSE client (base URL + API key)
         ├── api.test.ts
-        ├── types.ts                 # mirrors backend schemas
+        ├── types.ts                # mirrors backend schemas
+        ├── index.css               # Tailwind entry + focus-ring utility
+        ├── vite-env.d.ts
         ├── test/
-        │   ├── setup.ts             # Testing Library cleanup + jest-dom
-        │   └── fixtures.ts          # shared FusedTrack test factory
+        │   ├── setup.ts            # Testing Library cleanup + jest-dom
+        │   └── fixtures.ts         # shared FusedTrack test factory
         └── components/
-            ├── StatusBar.tsx        # connection indicator, EW toggles
+            ├── StatusBar.tsx       # connection state, EW jam/spoof toggles
             ├── StatusBar.test.tsx
-            ├── TrackCard.tsx        # per-track card w/ operator actions
+            ├── TrackCard.tsx       # per-track card w/ operator actions
             ├── TrackCard.test.tsx
-            ├── TrackMap.tsx         # live Leaflet map, severity-colored
-            ├── StageLadder.tsx      # F2T2EA progress visualization
-            └── StageLadder.test.tsx
+            ├── StageLadder.tsx     # F2T2EA progress visualization
+            ├── StageLadder.test.tsx
+            ├── TrackMap.tsx        # live Leaflet map, severity-colored
+            ├── HistoryPanel.tsx    # stage-event log + 5s auto-refresh toggle
+            └── HistoryPanel.test.tsx
 ```
 
 ## Setup
@@ -150,18 +176,40 @@ cp .env.example .env
 uvicorn backend.app.main:app --reload --port 8000
 ```
 
+**Python 3.12 is the supported version** (what CI pins). On 3.13 the pinned
+`asyncpg==0.29.0` has no prebuilt Windows wheel and will try to compile
+from source, which needs the MSVC build tools — verified the hard way, so
+use 3.12 unless you want to install those.
+
 Then:
 - Live fused track stream (SSE, unauthenticated — see note below): `GET http://localhost:8000/stream/tracks`
 - All active tracks (snapshot, unauthenticated): `GET http://localhost:8000/tracks`
 - Acknowledge a TARGET-stage track → ENGAGE (requires `X-API-Key` if `API_KEY` is set): `POST http://localhost:8000/tracks/{id}/ack`
-- Close out an ENGAGE-stage track → ASSESS (requires `X-API-Key` if set): `POST http://localhost:8000/tracks/{id}/assess?summary=...`
+- Close out a track → ASSESS (requires `X-API-Key` if set): `POST http://localhost:8000/tracks/{id}/assess?summary=...`
 - Toggle EW degradation on a feed (requires `X-API-Key` if set): `POST http://localhost:8000/ew/toggle?source_type=uav_uas`
-- Health check: `GET http://localhost:8000/health`
+- EW degradation status (all sources): `GET http://localhost:8000/ew/status`
 - Toggle EW spoofing on a feed (requires `X-API-Key` if set): `POST http://localhost:8000/ew/spoof/toggle?source_type=elint`
 - EW spoofing status: `GET http://localhost:8000/ew/spoof/status`
 - One track's full stage-transition history: `GET http://localhost:8000/tracks/{id}/history`
-- Global recent activity feed: `GET http://localhost:8000/history?limit=100`
+- Global recent activity feed (`limit` 1–1000, default 100): `GET http://localhost:8000/history?limit=100`
+- Health check: `GET http://localhost:8000/health`
 - Prometheus metrics: `GET http://localhost:8000/metrics`
+
+That's all 12 application routes. FastAPI additionally serves its
+auto-generated `/docs`, `/redoc`, and `/openapi.json` — left enabled
+because they're genuinely useful for poking at this, but worth disabling
+before any real deployment since they're not auth-gated either.
+
+**Two honest gaps in the operator actions above,** since the README used to
+imply otherwise:
+- `/ack` *is* properly gated — it raises 400 unless the track is at TARGET,
+  so ENGAGE is only ever reachable by explicit operator action.
+- `/assess` is **not** gated: `assess_track()` performs no stage check, so a
+  FIND-stage track can be forced straight to ASSESS (verified by doing it).
+- The `?summary=` note is **accepted and then discarded** — `assess_track()`
+  takes the parameter and never uses it, and there's no summary column in
+  the `stage_events` table. The dashboard's close-out box therefore sends
+  text nowhere. Called out rather than left as a surprise.
 
 **Auth note:** by default `API_KEY` is unset and none of this is
 enforced — fine for local dev, not fine for a real deployment. Set
@@ -177,6 +225,11 @@ Run tests:
 ```bash
 pytest backend/app/tests -v
 ```
+55 tests. Without a live Redis and Postgres you'll see **43 passed, 9
+skipped** (3 Redis + 5 Postgres integration tests skip themselves; the
+YOLO tests skip if `requirements-detection.txt` isn't installed) — the
+skips are by design, not failures. CI runs the Redis ones for real against
+a `redis:7-alpine` service container.
 
 ### Frontend (operator dashboard)
 
@@ -186,16 +239,17 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` — it proxies `/tracks`, `/stream`, `/ew`, and
-`/health` to the backend on port 8000 (see `vite.config.ts`), so run the
-backend first.
+Open `http://localhost:5173` — it proxies `/tracks`, `/history`, `/stream`,
+`/ew`, and `/health` to the backend on port 8000 (see `vite.config.ts`), so
+run the backend first.
 
 The dashboard shows each fused track as a card with a live F2T2EA stage
 ladder, confidence bar, contributing-source chips, and a degraded-feed
 indicator. When a track reaches TARGET it surfaces an **Acknowledge**
 control — the only way any track advances to ENGAGE, and always an
 explicit operator action, never automatic. ENGAGE-stage tracks get a
-close-out control that advances them to ASSESS with a summary note.
+close-out control that advances them to ASSESS (the note it collects is
+currently discarded server-side — see the gaps listed above).
 
 Toggle between the card grid and a live map view (top-left buttons) —
 the map plots each track's coordinates on a dark basemap, color-coded by
@@ -207,6 +261,11 @@ npx tsc -b
 npx vitest run
 npx vite build
 ```
+Equivalent npm scripts are defined in `package.json`: `npm run dev`,
+`npm test` (Vitest, 32 tests), `npm run build` (`tsc -b && vite build`),
+`npm run preview`, `npm run test:e2e` (Playwright). Vitest is configured to
+exclude `e2e/` so it doesn't try to collect the Playwright specs — that
+test-discovery conflict was a real bug, fixed in `vite.config.ts`.
 
 **End-to-end test (real browser, live SSE stream):** unlike the component
 tests above, `frontend/e2e/dashboard.spec.ts` runs against the actual
@@ -295,12 +354,70 @@ Runs all three services: backend (port 8000, wired to Redis via
 production build). Open `http://localhost:5173` — no separate `npm run
 dev` needed.
 
+### Configuration
+
+Everything is read from `.env` via `backend/app/config.py` — a plain
+`Settings` class over `os.getenv` with `load_dotenv()`, evaluated once at
+import. All of it has a working default; the app runs with an empty `.env`.
+Note there's no validation layer: a malformed numeric value raises at
+import rather than being coerced.
+
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS allowlist (not wide open) |
+| `API_KEY` | unset | Shared `X-API-Key` on mutating endpoints; no-op when unset |
+| `DATABASE_URL` | unset → SQLite `./sentinel.db` | Postgres URL; normalized to `+asyncpg`/`+aiosqlite` automatically |
+| `LOG_FORMAT` | `text` | `text` or `json` structured logging |
+| `REDIS_URL` | unset → in-memory queue | Switches to `RedisQueueBackend` |
+| `REDIS_QUEUE_KEY` | `sentinel:readings` | Redis list key |
+| `FUSION_DISTANCE_THRESHOLD_KM` | `1.5` | Max haversine distance to merge a reading into a track |
+| `FUSION_TIME_WINDOW_SECONDS` | `30` | Max age of a track to still be a match candidate |
+| `TRACK_STALE_AFTER_SECONDS` | `120` | Age at which a track is pruned — see caveat below |
+| `VEHICLE_IR_INTERVAL` | `2` | Seconds between synthetic readings (per feed) |
+| `UAV_UAS_INTERVAL` | `3` | ″ |
+| `ELINT_INTERVAL` | `4` | ″ |
+| `LEGACY_C2_INTERVAL` | `5` | ″ |
+| `ENABLE_REAL_DETECTION` | `false` | Real YOLOv8n inference on the vehicle/IR feed |
+| `YOLO_MODEL_PATH` | `yolov8n.pt` | Weights to load in real-detection mode |
+| `YOLO_FRAME_SOURCE` | `demo` | `demo`, `webcam`, or a video/image path |
+
+`HOST` and `PORT` are also defined in `config.py` but nothing reads them —
+the bind address comes from the `uvicorn` CLI flags. Left in place rather
+than quietly deleted, but they're dead config, not knobs.
+
+The SSE broadcast interval (1.0s) is a module constant in
+`streaming/sse.py`, not an env var.
+
+**Stale-track caveat, stated plainly:** `prune_stale()` is only called from
+the SSE broadcast loop, so `TRACK_STALE_AFTER_SECONDS` only takes effect
+while at least one client is connected to `/stream/tracks`. With no
+dashboard open, `/tracks` and `/metrics` will keep reporting tracks past
+their expiry. A real system would prune on a timer independent of who's
+watching; this one doesn't.
+
+Frontend build-time vars (`frontend/.env.example`): `VITE_API_BASE_URL`
+and `VITE_API_KEY`. Both are read at **build** time, not runtime.
+
 ### CI
 
-`.github/workflows/ci.yml` runs the backend pytest suite and a frontend
-type-check + build on every push/PR to `main`. It deliberately uses
-`requirements.txt` only (not `requirements-detection.txt`) to keep CI fast
-— the real-detection path is exercised locally/manually, not on every push.
+`.github/workflows/ci.yml` runs three jobs on every push/PR to `main`:
+
+1. **`backend-tests`** — Python 3.12, `pytest backend/app/tests`, with a
+   live `redis:7-alpine` service container and `REDIS_URL` set, so the
+   Redis queue correctness tests actually execute rather than skipping.
+2. **`frontend-build`** — Node 20, `npm ci` → `tsc -b` → `vitest run` →
+   `vite build`. Type errors, failing component tests, and build breakage
+   all fail the job.
+3. **`e2e`** — needs both jobs above. Boots a real uvicorn backend (feed
+   intervals dropped to `0.5s` so tracks reach TARGET quickly), installs
+   Chromium via `playwright install --with-deps`, and runs the browser
+   test. Uploads the `playwright-report` artifact on failure.
+
+CI deliberately uses `requirements.txt` only (not
+`requirements-detection.txt`) to keep it fast — the real-detection path is
+exercised locally/manually, not on every push. Postgres isn't wired into
+CI either, so the 5 Postgres tests skip there; they were verified against
+a real local PostgreSQL 16 instance instead.
 
 ## Deployment
 
@@ -349,9 +466,9 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | React operator dashboard (grid + map + history views, auto-refresh) | Done |
 | Stage-event history persistence (SQLite + real-Postgres-verified) | Done |
 | Structured logging (text/JSON) + Prometheus `/metrics` | Done   |
-| Backend test suite (54 tests — all pass w/ Redis+Postgres+YOLO live) | Done |
+| Backend test suite (55 tests — all pass w/ Redis+Postgres+YOLO live) | Done |
 | Frontend test suite (32 tests, Vitest + Testing Library) | Done |
-| CI (backend tests incl. live Redis service, frontend typecheck/tests/build) | Done |
+| CI (3 jobs: backend + live Redis, frontend typecheck/tests/build, e2e) | Done |
 | Real YOLOv8n detection mode (optional, verified)        | Done   |
 | Configurable model weights + video/webcam source (optional, verified) | Done |
 | Redis-backed distributed queue mode (optional, verified) | Done   |
@@ -362,7 +479,7 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | Direct Redis queue-throughput benchmark, measured        | Done — see `loadtest/README.md` |
 | LICENSE (MIT)                                            | Done   |
 | Full-stack Docker Compose (backend + Redis + frontend)  | Written, not build-tested — see note below |
-| E2E browser test (Playwright) of the live dashboard      | Written, wired into CI, not run in this sandbox — see note below |
+| E2E browser test (Playwright, 4 specs) of the live dashboard | Written, wired into CI, not run in this sandbox — see note below |
 | Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
 
 **On "predictive (constant-velocity) matching":** named deliberately, not
@@ -414,11 +531,20 @@ in `loadtest/README.md`.
 - **Structured logging** (`backend/app/logging_config.py`): `LOG_FORMAT=text`
   (default, human-readable) or `LOG_FORMAT=json` (one object per line,
   for a real log aggregator).
-- **Metrics** (`GET /metrics`, Prometheus text format): active track
-  count, tracks-by-F2T2EA-stage, EW-degraded and EW-spoofing source
-  counts, HTTP request counts by method/path/status. Gauges are recomputed
-  fresh from live state on every scrape rather than updated incrementally,
-  so they can't drift out of sync with the state they reflect.
+- **Metrics** (`GET /metrics`, Prometheus text format) — five collectors on
+  a private registry (so no default process/GC metrics):
+  `sentinel_active_tracks`, `sentinel_tracks_by_stage{stage}`,
+  `sentinel_ew_degraded_sources`, `sentinel_ew_spoofing_sources`, and
+  `sentinel_http_requests_total{method,path,status_code}`. Gauges are
+  recomputed fresh from live state on every scrape rather than updated
+  incrementally, so they can't drift out of sync with the state they
+  reflect. `/metrics` excludes itself from the request counter.
+
+  One caveat worth knowing: the `path` label is the raw request path, so
+  per-track routes like `/tracks/TRK-1A2B3C4D/ack` create a new counter
+  series per track ID. Unbounded label cardinality — fine at this scale,
+  wrong for a long-running deployment, where the fix is to label with the
+  route template instead of the resolved path.
 
 ## EW spoofing (in addition to degradation)
 

@@ -13,7 +13,7 @@ technical specificity if the target role wants depth over brevity.
 - Shortened the Find-Fix-Track-Target-Engage-Assess cycle for 4 heterogeneous
   data sources (vehicle/IR, UAV/UAS, ELINT, legacy C2) as measured by 100%
   passing coverage across fusion, state-machine, and persistence layers
-  (48 backend + 32 frontend tests) by architecting a spatial-temporal
+  (55 backend + 32 frontend tests) by architecting a spatial-temporal
   fusion engine with constant-velocity predictive matching and an explicit
   operator-gated F2T2EA state machine.
 - Sustained system reliability under adversarial and high-load conditions
@@ -58,7 +58,7 @@ technical specificity if the target role wants depth over brevity.
   (Locust load test, both in-memory and Redis-backed queue modes) against
   a FastAPI backend with API-key-gated mutating endpoints and
   origin-allowlisted CORS.
-- Built a CI pipeline (GitHub Actions) running 48 backend tests (incl. a
+- Built a CI pipeline (GitHub Actions) running 55 backend tests (incl. a
   live Redis service container), 32 frontend tests (Vitest + Testing
   Library), and an end-to-end Playwright browser test against the live
   full stack — not just unit-level coverage.
@@ -68,7 +68,7 @@ technical specificity if the target role wants depth over brevity.
 Built Sentinel-FFT2EA, a multi-source ISR fusion pipeline (FastAPI +
 React) modeling the F2T2EA decision cycle with predictive tracking, EW
 degradation/spoofing simulation, and dual SQLite/Postgres persistence —
-80 tests across backend and frontend, load-tested to 300 concurrent users
+87 tests across backend and frontend, load-tested to 300 concurrent users
 with zero failures.
 
 ---
