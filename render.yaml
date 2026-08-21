@@ -1,3 +1,8 @@
+# Render's native Python runtime, not the Dockerfile. The Python version
+# comes from .python-version (3.12) at the repo root — do not remove it:
+# asyncpg==0.29.0 ships no wheels past cp312, so on Render's current
+# default (3.14) pip falls back to the sdist and the build dies compiling
+# the C extension. Same failure this project already hit locally on 3.13.
 services:
   - type: web
     name: sentinel-fft2ea-backend
