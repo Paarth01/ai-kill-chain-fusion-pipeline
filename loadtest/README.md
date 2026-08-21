@@ -136,6 +136,7 @@ Correctness (not just throughput) is verified separately in
 `backend/app/tests/test_redis_queue_correctness.py` — 3 tests confirming
 put/get round-trips preserve message identity at volume (200 messages)
 and that concurrent producer/consumer access doesn't drop messages.
-Skipped automatically if Redis isn't reachable (not part of the default
-CI backend-tests job, which has no Redis service configured) — run it
-locally against `redis-server &`.
+Skipped automatically if Redis isn't reachable, so a plain local `pytest`
+run stays green without one — but CI's `backend-tests` job does provision
+a `redis:7-alpine` service container and sets `REDIS_URL`, so these three
+run for real on every push. Locally, start `redis-server &` first.

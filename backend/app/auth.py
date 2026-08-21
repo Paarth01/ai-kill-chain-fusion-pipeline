@@ -7,10 +7,14 @@ project's operator-action endpoints, not a corner cut on something that
 needed to be more sophisticated: there's only one "operator" role here,
 so there's nothing a multi-user auth system would buy beyond complexity.
 
-When ALLOWED_ORIGINS is left at its default and API_KEY is unset, auth is
-effectively disabled — this keeps `pip install -r requirements.txt &&
-uvicorn ...` and the test suite working with zero setup. Set API_KEY
-before any real deployment.
+When API_KEY is unset, auth is disabled — this keeps `pip install -r
+requirements.txt && uvicorn ...` and the test suite working with zero
+setup. ALLOWED_ORIGINS has no bearing on this; only API_KEY does. Set
+API_KEY before any real deployment.
+
+Note the comparison below is a plain `!=`, not `hmac.compare_digest` — so
+it isn't constant-time. Fine for a single shared local key; worth changing
+if this ever guarded anything real.
 """
 
 from __future__ import annotations
