@@ -7,6 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/tracks": "http://localhost:8000",
+      "/history": "http://localhost:8000",
       "/stream": "http://localhost:8000",
       "/ew": "http://localhost:8000",
       "/health": "http://localhost:8000",
