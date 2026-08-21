@@ -23,6 +23,8 @@ still producing a usable fused picture when a feed is jammed or dropped.
 
 Built to demonstrate hands-on fluency with:
 - **ISR** — multi-sensor ingest (vehicle/IR, UAV/UAS, ELINT-style signals)
+- **HUMINT integration** — push-ingested human text reports fused alongside
+  machine sensors, with rule-based confidence mapping
 - **Legacy C2 integration** — adapting an older/mismatched data format into
   the fusion pipeline
 - **Electronic Warfare resilience** — degraded/contested feed handling
@@ -30,6 +32,12 @@ Built to demonstrate hands-on fluency with:
 - Real-time operator dashboards (SSE streaming, reused from prior projects)
 
 ## Architecture
+
+Four sensor feeds are timer-driven producers. HUMINT is the exception —
+it arrives by POST when a human files a report, so it joins at the queue
+rather than being polled, and it bypasses the EW simulator (jamming and
+spoofing model RF interference against a sensor, which a written report
+isn't subject to).
 
 ```
  ┌────────────┐   ┌────────────┐   ┌────────────┐   ┌────────────┐
@@ -39,10 +47,13 @@ Built to demonstrate hands-on fluency with:
        │                │                │                │
        └────────────────┴───────┬────────┴────────────────┘
                                  ▼
-                        ┌─────────────────┐
-                        │   EW Simulator   │  (randomly degrades a feed)
-                        └────────┬────────┘
-                                 ▼
+                        ┌─────────────────┐      ┌──────────────────┐
+                        │   EW Simulator   │      │ HUMINT report    │
+                        │ (degrade/spoof)  │      │ POST /ingest/    │
+                        └────────┬────────┘      │      humint       │
+                                 │                └────────┬─────────┘
+                                 └───────┬────────────────┘
+                                         ▼
                         ┌─────────────────┐
                         │  Fusion Engine   │  (spatial-temporal matching)
                         └────────┬────────┘
@@ -95,7 +106,9 @@ sentinel-fft2ea/
 │       │   ├── vehicle_ir_feed.py  # synthetic OR real YOLOv8n mode
 │       │   ├── uav_feed.py
 │       │   ├── elint_feed.py
-│       │   └── legacy_c2_feed.py   # deliberately mismatched schema + adapter
+│       │   ├── legacy_c2_feed.py   # deliberately mismatched schema + adapter
+│       │   └── humint_ingest.py    # push-ingested human reports (not a
+│       │                             BaseFeed — no polling interval)
 │       ├── fusion/
 │       │   ├── fusion_engine.py    # spatial-temporal + predictive matching
 │       │   └── queue_backend.py    # in-memory OR Redis-backed queue
@@ -114,7 +127,7 @@ sentinel-fft2ea/
 │       │                             async SQLAlchemy; stage_events table
 │       ├── observability/
 │       │   └── metrics.py          # Prometheus collectors + render_metrics()
-│       └── tests/                  # 55 tests
+│       └── tests/                  # 57 tests
 │           ├── test_fusion.py
 │           ├── test_predictive_matching.py
 │           ├── test_state_machine.py
@@ -125,6 +138,7 @@ sentinel-fft2ea/
 │           ├── test_observability.py
 │           ├── test_ew_spoofing.py
 │           ├── test_auth.py
+│           ├── test_humint_ingestion.py
 │           └── test_yolo_detector.py
 └── frontend/
     ├── package.json / package-lock.json
@@ -192,13 +206,47 @@ Then:
 - EW spoofing status: `GET http://localhost:8000/ew/spoof/status`
 - One track's full stage-transition history: `GET http://localhost:8000/tracks/{id}/history`
 - Global recent activity feed (`limit` 1–1000, default 100): `GET http://localhost:8000/history?limit=100`
+- Submit a HUMINT report (requires `X-API-Key` if set; returns 202): `POST http://localhost:8000/ingest/humint`
 - Health check: `GET http://localhost:8000/health`
 - Prometheus metrics: `GET http://localhost:8000/metrics`
 
-That's all 12 application routes. FastAPI additionally serves its
+That's all 13 application routes. FastAPI additionally serves its
 auto-generated `/docs`, `/redoc`, and `/openapi.json` — left enabled
 because they're genuinely useful for poking at this, but worth disabling
 before any real deployment since they're not auth-gated either.
+
+**HUMINT ingestion** is the one source that arrives by push rather than on
+a timer, since a human files a report when they have one:
+
+```bash
+curl -X POST http://localhost:8000/ingest/humint \
+  -H "Content-Type: application/json" \
+  -d '{"source_id":"HUMINT-OBS-04",
+       "report_text":"Two tracked vehicles moving north along the treeline.",
+       "location":{"lat":28.60,"lon":77.20},
+       "confidence":"high"}'
+```
+
+Extraction is rule-based, not NLP: the stated confidence band maps to a
+score (`low` 0.25 / `medium` 0.55 / `high` 0.8) and the location maps
+straight through, with `report_text` preserved verbatim in the reading's
+`raw_signature` so the operator reads the reporter's own words. Inferring
+confidence from prose would be worse evidence than the human's own
+assessment, so it doesn't try.
+
+Two consequences worth knowing:
+- **`location` has no default.** A report that can't be placed on the map
+  can't be fused, so it's rejected with a 422 rather than defaulted to
+  coordinates nobody observed.
+- **A `low`-confidence report is ingested but can't drive the chain.** 0.25
+  falls below the classifier's 0.4 floor, so the track carries `UNKNOWN`
+  severity and stays at FIND — visible to the operator, but structurally
+  short of TARGET on its own.
+
+HUMINT is also excluded from `/ew/status` and `/ew/spoof/status` (both still
+return the same four sensor sources). EW here models RF interference against
+a sensor — dropped readings, confidence penalties, injected phantom
+contacts — which a written report isn't subject to.
 
 **Two honest gaps in the operator actions above,** since the README used to
 imply otherwise:
@@ -225,11 +273,17 @@ Run tests:
 ```bash
 pytest backend/app/tests -v
 ```
-55 tests. Without a live Redis and Postgres you'll see **43 passed, 9
+57 tests. Without a live Redis and Postgres you'll see **49 passed, 9
 skipped** (3 Redis + 5 Postgres integration tests skip themselves; the
 YOLO tests skip if `requirements-detection.txt` isn't installed) — the
 skips are by design, not failures. CI runs the Redis ones for real against
 a `redis:7-alpine` service container.
+
+Note the arithmetic: 49 + 9 ≠ 57 because `test_yolo_detector.py` skips at
+module level via `pytest.importorskip`, so its 4 tests register as a single
+skip. CI installs only `requirements.txt` and provisions Redis but not
+Postgres, so a green build proves 52 of the 57 — the 5 Postgres tests were
+verified locally against a real PostgreSQL 16 instance, not in CI.
 
 ### Frontend (operator dashboard)
 
@@ -459,6 +513,7 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | Piece                                                | Status |
 |-------------------------------------------------------|--------|
 | Synthetic multi-source feeds (IR, UAV, ELINT, C2)      | Done   |
+| HUMINT push ingestion (`POST /ingest/humint`, rule-based mapping) | Done — verified live |
 | Fusion engine w/ predictive (constant-velocity) matching | Done — see note below |
 | F2T2EA state machine w/ explicit operator gate         | Done   |
 | EW degradation + spoofing simulator (incl. dashboard controls) | Done |
@@ -466,7 +521,7 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | React operator dashboard (grid + map + history views, auto-refresh) | Done |
 | Stage-event history persistence (SQLite + real-Postgres-verified) | Done |
 | Structured logging (text/JSON) + Prometheus `/metrics` | Done   |
-| Backend test suite (55 tests — all pass w/ Redis+Postgres+YOLO live) | Done |
+| Backend test suite (57 tests; 49 pass locally, 52 reachable in CI) | Done |
 | Frontend test suite (32 tests, Vitest + Testing Library) | Done |
 | CI (3 jobs: backend + live Redis, frontend typecheck/tests/build, e2e) | Done |
 | Real YOLOv8n detection mode (optional, verified)        | Done   |

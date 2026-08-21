@@ -10,12 +10,13 @@ technical specificity if the target role wants depth over brevity.
 **Sentinel-FFT2EA — Multi-Source ISR Fusion Pipeline for the F2T2EA Decision Cycle**
 *Solo project, built for the Indian Army Internship Program (IAIP) AI/ML application*
 
-- Shortened the Find-Fix-Track-Target-Engage-Assess cycle for 4 heterogeneous
-  data sources (vehicle/IR, UAV/UAS, ELINT, legacy C2) as measured by 100%
-  passing coverage across fusion, state-machine, and persistence layers
-  (55 backend + 32 frontend tests) by architecting a spatial-temporal
-  fusion engine with constant-velocity predictive matching and an explicit
-  operator-gated F2T2EA state machine.
+- Shortened the Find-Fix-Track-Target-Engage-Assess cycle for 5 heterogeneous
+  data sources (vehicle/IR, UAV/UAS, ELINT, legacy C2, and push-ingested
+  HUMINT text reports) as measured by 49 passing automated backend tests
+  across fusion, state-machine, and persistence layers (plus 32 frontend
+  tests) by architecting a spatial-temporal fusion engine with
+  constant-velocity predictive matching and an explicit operator-gated
+  F2T2EA state machine.
 - Sustained system reliability under adversarial and high-load conditions
   as measured by 0 failures across 5,291 requests at 300 concurrent users
   (Locust) and 8,688 ops/sec on direct Redis queue throughput benchmarks
@@ -58,18 +59,18 @@ technical specificity if the target role wants depth over brevity.
   (Locust load test, both in-memory and Redis-backed queue modes) against
   a FastAPI backend with API-key-gated mutating endpoints and
   origin-allowlisted CORS.
-- Built a CI pipeline (GitHub Actions) running 55 backend tests (incl. a
-  live Redis service container), 32 frontend tests (Vitest + Testing
+- Built a CI pipeline (GitHub Actions) running the backend suite against a
+  live Redis service container, 32 frontend tests (Vitest + Testing
   Library), and an end-to-end Playwright browser test against the live
   full stack — not just unit-level coverage.
 
 ## One-liner (for a skills/projects summary line)
 
-Built Sentinel-FFT2EA, a multi-source ISR fusion pipeline (FastAPI +
-React) modeling the F2T2EA decision cycle with predictive tracking, EW
-degradation/spoofing simulation, and dual SQLite/Postgres persistence —
-87 tests across backend and frontend, load-tested to 300 concurrent users
-with zero failures.
+Built Sentinel-FFT2EA, a 5-source ISR fusion pipeline (FastAPI + React)
+modeling the F2T2EA decision cycle with predictive tracking, EW
+degradation/spoofing simulation, HUMINT report ingestion, and dual
+SQLite/Postgres persistence — 93 tests across backend, frontend, and
+browser E2E, load-tested to 300 concurrent users with zero failures.
 
 ---
 
