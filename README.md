@@ -280,8 +280,10 @@ skips are by design, not failures. CI runs the Redis ones for real against
 a `redis:7-alpine` service container.
 
 Note the arithmetic: 49 + 9 ≠ 57 because `test_yolo_detector.py` skips at
-module level via `pytest.importorskip`, so its 4 tests register as a single
-skip. CI installs only `requirements.txt` and provisions Redis but not
+module level via `pytest.importorskip`, so its 4 tests are never collected —
+the file reports one skip *on top of* the 57 collected tests. Install
+`requirements-detection.txt` and those 4 collect too, making it 61.
+CI installs only `requirements.txt` and provisions Redis but not
 Postgres, so a green build proves 52 of the 57 — the 5 Postgres tests were
 verified locally against a real PostgreSQL 16 instance, not in CI.
 
