@@ -281,9 +281,9 @@ cd frontend
 npx playwright install --with-deps chromium   # first time only
 npx playwright test
 ```
-This is also wired into CI as its own job and runs automatically on
-every push — see the Status table below for why it couldn't be verified
-in the sandbox this project was built in.
+This is also wired into CI as its own job and runs automatically on every
+push — where it passes against real headless Chromium, so the four specs
+are verified rather than merely written.
 
 ### Real YOLOv8n detection mode (optional)
 
@@ -479,7 +479,7 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | Direct Redis queue-throughput benchmark, measured        | Done — see `loadtest/README.md` |
 | LICENSE (MIT)                                            | Done   |
 | Full-stack Docker Compose (backend + Redis + frontend)  | Written, not build-tested — see note below |
-| E2E browser test (Playwright, 4 specs) of the live dashboard | Written, wired into CI, not run in this sandbox — see note below |
+| E2E browser test (Playwright, 4 specs) of the live dashboard | Done — passed in CI against real Chromium |
 | Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
 
 **On "predictive (constant-velocity) matching":** named deliberately, not
@@ -490,26 +490,31 @@ measured improvement to the same underlying "matching a moving target"
 problem (see `backend/app/fusion/fusion_engine.py`'s module docstring and
 `test_predictive_matching.py`), described as exactly that and no more.
 
-**On the two "written, not verified here" rows above:** this sandbox's
-network only allows a specific domain allowlist (npm, PyPI, GitHub,
-Ubuntu's package archive, etc.). Docker itself runs fine here — I
+**On the one "written, not verified here" row above:** the sandbox this
+was originally built in only allowed a specific network allowlist (npm,
+PyPI, GitHub, Ubuntu's package archive). Docker itself ran fine there —
 installed it and confirmed the daemon starts — but pulling the
-`python:3.12-slim` base image from Docker Hub returns a 403, since that
-registry isn't on the allowlist. Same story for a real browser: Playwright's
-own CDN is blocked, and Ubuntu's `chromium-browser` package is a dead
-stub pointing at a snap that doesn't work in this environment either.
-Both are genuine sandbox limits, not skipped effort — confirmed by
-actually trying each one, not assumed.
+`python:3.12-slim` base image from Docker Hub returned a 403, since that
+registry isn't on the allowlist. On the Windows machine the docs were
+later audited on, the Docker Desktop engine wasn't running and wasn't
+started just to test this. So `docker compose up --build` remains the one
+genuinely unverified path here: written carefully, never executed. A
+genuine environment limit confirmed by trying it, not skipped effort —
+but unverified is unverified, and it's the one row above that says so.
 
-The E2E test (`frontend/e2e/dashboard.spec.ts`) is wired into
-`.github/workflows/ci.yml` as its own job, and GitHub Actions runners
-don't have this sandbox's restriction — it will actually execute in a
-real headless Chromium there. **After pushing, check the Actions tab
-rather than taking "it's written" as "it's verified."** If it fails,
-that's useful signal, not a formality — send me the failure and I'll fix
-it from the error, the same way the StageLadder bug and the
-Vitest/Playwright test-discovery conflict got caught and fixed during
-this build, not glossed over.
+The E2E test (`frontend/e2e/dashboard.spec.ts`) **has now actually run.**
+Playwright's CDN was blocked in that original sandbox, so it could only be
+written and wired into `.github/workflows/ci.yml` as its own job. GitHub
+Actions runners have no such restriction, and the `e2e` job now passes
+there — real headless Chromium, real backend, real dev server, real SSE
+stream, ~55s. That's why the row above reads Done rather than "written":
+it was checked in the Actions tab rather than taken on faith, which is the
+standard the rest of this table is held to.
+
+For the record, that check has earned its keep: the StageLadder bug and
+the Vitest/Playwright test-discovery conflict were both caught this way
+during the build, and a broken `/history` dev proxy was caught during the
+docs audit — none of them glossed over.
 
 ## Load testing
 
