@@ -5,6 +5,11 @@
 > program's named F2T2EA cycle, ISR fusion, and legacy C2 integration,
 > using synthetic data only.
 
+**Live demo:** [operator dashboard](https://frontend-eight-self-54.vercel.app)
+· [API](https://sentinel-fft2ea-backend.onrender.com/health) — free tier, so
+the backend cold-starts in ~40s on the first request. See
+[Deployment](#deployment) for why the demo's API key is deliberately public.
+
 A simulated multi-source threat fusion and decision-support pipeline. Ingests
 synthetic sensor feeds from multiple source types, fuses them into unified
 tracks, classifies them, and advances each track through the
@@ -267,7 +272,8 @@ stay unauthenticated even with `API_KEY` set — the browser's
 `EventSource` API can't send custom headers, so protecting the stream
 would need a different scheme (e.g. a short-lived signed query param),
 which isn't implemented here. Stated as a real, known gap rather than
-glossed over.
+glossed over. A second known gap, by choice: on the hosted demo the key
+is world-readable in the frontend bundle — see [Deployment](#deployment).
 
 Run tests:
 ```bash
@@ -477,9 +483,31 @@ a real local PostgreSQL 16 instance instead.
 
 ## Deployment
 
-Configs are included for the same split-hosting pattern used elsewhere in
-this portfolio (backend on Render, frontend on Vercel) — **not yet
-deployed**, since that requires your own Render/Vercel accounts:
+**Live now**, using the same split-hosting pattern as the rest of this
+portfolio — backend on Render, frontend on Vercel:
+
+| | URL |
+|---|---|
+| Operator dashboard | https://frontend-eight-self-54.vercel.app |
+| API | https://sentinel-fft2ea-backend.onrender.com |
+
+Both are free-tier. The backend cold-starts after inactivity, so the first
+request can take ~40s; the four sensor feeds only generate readings while
+the instance is awake, so an idle demo shows a stale track list until it
+spins up.
+
+> **The live demo's API key is public on purpose.** The dashboard is a
+> static bundle, and Vite inlines every `VITE_*` variable at build time, so
+> `VITE_API_KEY` is readable by anyone who opens the JS. That's a deliberate
+> trade for a synthetic-data demo: it keeps the human-in-the-loop Engage
+> gate and the EW jam/spoof toggles clickable for a reviewer instead of
+> returning 401. Auth is still genuinely enforced server-side (an
+> unauthenticated `POST` returns 401, verified against the live instance) —
+> it just isn't a *secret* on this deployment. For anything real, the key
+> belongs on a server-side proxy, never in a browser bundle. Rotate it in
+> the Render dashboard and redeploy the frontend to invalidate it.
+
+To stand up your own instance:
 
 **Backend (Render):**
 1. Push this repo to GitHub.
@@ -488,6 +516,11 @@ deployed**, since that requires your own Render/Vercel accounts:
    requirements.txt`, `uvicorn` start command). Real-detection mode is set
    to `false` by default here — Render's free tier build won't fit
    torch/ultralytics; leave `requirements-detection.txt` for local/self-hosted use.
+   The root `.python-version` pins the runtime to 3.12 and is **required**:
+   Render's native Python buildpack now defaults to 3.14, where
+   `asyncpg==0.29.0` has no wheel (wheels stop at cp312), so the build falls
+   back to compiling from source and dies in C. Note the buildpack reads
+   `.python-version`, not the `Dockerfile`.
 3. Set `API_KEY` in the Render dashboard to a real secret — `render.yaml`
    leaves it blank intentionally rather than shipping a default key.
 4. After the first deploy, set `ALLOWED_ORIGINS` in the Render dashboard
@@ -495,12 +528,17 @@ deployed**, since that requires your own Render/Vercel accounts:
    leaves this blank since it depends on the frontend URL you get.
 
 **Frontend (Vercel):**
-1. Import the repo in Vercel, set the project root to `frontend/`.
+1. Import the repo in Vercel and set **Root Directory** to `frontend`.
    `vercel.json` there defines the build (`npm run build`, `vite` preset).
+   Don't skip this: left at the repo root, Vercel finds the root
+   `requirements.txt`, decides the project is Python, and fails the build
+   trying to compile `asyncpg` for a React app.
 2. Set environment variables `VITE_API_BASE_URL` (your Render backend's
-   URL) and `VITE_API_KEY` (matching the `API_KEY` you set on Render).
+   URL) and `VITE_API_KEY` (matching the `API_KEY` you set on Render) —
+   reading the warning above about `VITE_API_KEY` being public first.
 3. Redeploy so the build picks up both env vars — they're read at build
-   time, not runtime (see `frontend/src/api.ts`).
+   time, not runtime (see `frontend/src/api.ts`). Changing an env var alone
+   does nothing until you rebuild; the value is baked into the bundle.
 
 Update the Render backend's `ALLOWED_ORIGINS` once you have the final
 Vercel URL, and redeploy the backend — CORS is origin-allowlisted, not
@@ -537,7 +575,7 @@ real YOLOv8n inference and a real Redis-backed queue, not just stubs.
 | LICENSE (MIT)                                            | Done   |
 | Full-stack Docker Compose (backend + Redis + frontend)  | Written, not build-tested — see note below |
 | E2E browser test (Playwright, 4 specs) of the live dashboard | Done — passed in CI against real Chromium |
-| Render + Vercel deployment configs                      | Written, not deployed (requires your own hosting accounts) |
+| Render + Vercel deployment, live | Done — both deployed and verified end-to-end against the live instances |
 
 **On "predictive (constant-velocity) matching":** named deliberately, not
 oversold — this is a single predicted position per track extrapolated

@@ -23,12 +23,13 @@ technical specificity if the target role wants depth over brevity.
   by building EW degradation/spoofing simulation, a Redis-backed
   distributed queue mode verified against real PostgreSQL and Redis
   instances, and Prometheus-instrumented observability.
-- Delivered a full-stack, deployment-ready system as measured by CI-verified
+- Delivered and deployed a full-stack system as measured by CI-verified
   backend, frontend, and end-to-end browser test suites (GitHub Actions,
-  incl. a live Redis service container) by building a FastAPI backend
-  with dual SQLite/Postgres persistence and API-key auth, paired with a
-  React/TypeScript operator dashboard (live map, stage-transition
-  history, real-time SSE).
+  incl. a live Redis service container) plus a publicly reachable live
+  deployment verified end-to-end against the running instances by building
+  a FastAPI backend with dual SQLite/Postgres persistence and API-key auth,
+  paired with a React/TypeScript operator dashboard (live map,
+  stage-transition history, real-time SSE).
 
 ## Alternate (more technical depth, for a role that wants it)
 
